@@ -1,80 +1,78 @@
-#!/usr/bin/env node
-import { createRequire } from "node:module";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runAxiCli } from "axi-sdk-js";
-import { call, getClient, objectTitle, shortDate, type Obj } from "./lib.js";
-import { getCommandHelp, TOP_LEVEL_HELP } from "./help.js";
-import { searchCommand } from "./commands/search.js";
-import { pageCommand } from "./commands/page.js";
-import { dbCommand } from "./commands/db.js";
-import { usersCommand } from "./commands/users.js";
-import { setupCommand } from "./commands/setup.js";
+import { homeCommand } from "./commands/home.js";
+import { searchCommand, SEARCH_HELP } from "./commands/search.js";
+import { pageCommand, PAGE_HELP } from "./commands/page.js";
+import { dbCommand, DB_HELP } from "./commands/db.js";
+import { usersCommand, USERS_HELP } from "./commands/users.js";
+import { setupCommand, SETUP_HELP } from "./commands/setup.js";
 
-const require = createRequire(import.meta.url);
-const pkg = require("../package.json") as { version: string };
+export const DESCRIPTION =
+  "Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for Notion operations.";
 
-const DESCRIPTION = "Agent eXperience Interface for Notion — search, read, and write pages & databases.";
+export const TOP_HELP = `usage: notion-axi [command] [args] [flags]
+commands[6]:
+  (none)=home, search, page, db, users, setup
+flags:
+  --help, -v/-V/--version
+auth:
+  NOTION_TOKEN — internal integration secret (https://www.notion.so/my-integrations)
+examples:
+  notion-axi
+  notion-axi search roadmap
+  notion-axi page view <id>
+  notion-axi db query <id>
+  notion-axi page create --parent <id> --title "<text>"
+  notion-axi setup hooks
+`;
 
-async function home() {
-  if (!process.env.NOTION_TOKEN && !process.env.NOTION_API_KEY) {
-    return {
-      status: "NOTION_TOKEN is not set",
-      setup: [
-        "1. Create an internal integration: https://www.notion.so/my-integrations",
-        "2. export NOTION_TOKEN=ntn_...",
-        "3. Share pages/databases with the integration (••• → Connections)",
-      ],
-      help: ["Run `notion-axi --help` to see all commands"],
-    };
-  }
+const COMMAND_HELP: Record<string, string> = {
+  search: SEARCH_HELP,
+  page: PAGE_HELP,
+  db: DB_HELP,
+  users: USERS_HELP,
+  setup: SETUP_HELP,
+};
 
-  const notion = getClient();
-  const res: Obj = await call(() =>
-    notion.search({
-      page_size: 10,
-      sort: { timestamp: "last_edited_time", direction: "descending" },
-    }),
-  );
+const COMMANDS = {
+  search: (args: string[]) => searchCommand(args),
+  page: (args: string[]) => pageCommand(args),
+  db: (args: string[]) => dbCommand(args),
+  users: (args: string[]) => usersCommand(args),
+  setup: (args: string[]) => setupCommand(args),
+};
 
-  const recent = (res.results ?? []).map((r: Obj) => ({
-    id: r.id,
-    title: objectTitle(r),
-    type: r.object === "data_source" ? "database" : r.object,
-    edited: shortDate(r.last_edited_time),
-  }));
-
-  if (recent.length === 0) {
-    return {
-      recent: [],
-      result: "Nothing shared with this integration yet",
-      help: [
-        "Share a page/database in Notion → ••• → Connections → add your integration",
-        "Then run `notion-axi search <query>`",
-      ],
-    };
-  }
-
-  return {
-    recent,
-    count: recent.length,
-    help: [
-      "Run `notion-axi search <query>` to find more",
-      "Run `notion-axi page view <id>` to read a page",
-      "Run `notion-axi db query <id>` to list database rows",
-    ],
-  };
+export interface MainOptions {
+  argv?: string[];
+  stdout?: { write: (chunk: string) => unknown };
 }
 
-await runAxiCli({
-  description: DESCRIPTION,
-  version: pkg.version,
-  topLevelHelp: TOP_LEVEL_HELP,
-  getCommandHelp,
-  home,
-  commands: {
-    search: (args) => searchCommand(args),
-    page: (args) => pageCommand(args),
-    db: (args) => dbCommand(args),
-    users: (args) => usersCommand(args),
-    setup: (args) => setupCommand(args),
-  },
-});
+export async function main(options: MainOptions = {}): Promise<void> {
+  await runAxiCli({
+    ...(options.argv ? { argv: options.argv } : {}),
+    description: DESCRIPTION,
+    version: readPackageVersion(),
+    topLevelHelp: TOP_HELP,
+    ...(options.stdout ? { stdout: options.stdout } : {}),
+    home: () => homeCommand(),
+    commands: COMMANDS,
+    getCommandHelp: (command) => COMMAND_HELP[command],
+  });
+}
+
+function readPackageVersion(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  for (const candidate of [
+    join(here, "..", "package.json"),
+    join(here, "..", "..", "package.json"),
+  ]) {
+    if (!existsSync(candidate)) continue;
+    const parsed = JSON.parse(readFileSync(candidate, "utf-8"));
+    if (typeof parsed.version === "string" && parsed.version.length > 0) {
+      return parsed.version;
+    }
+  }
+  throw new Error("Could not determine notion-axi package version");
+}

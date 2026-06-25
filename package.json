@@ -1,40 +1,62 @@
 {
   "name": "notion-axi",
   "version": "0.1.0",
-  "description": "Agent eXperience Interface (AXI) for Notion — a token-efficient CLI for AI agents to search, read, and write Notion pages and databases.",
+  "packageManager": "pnpm@11.8.0",
+  "description": "AXI-compliant Notion CLI for agents — token-efficient TOON output, contextual suggestions, idempotent mutations",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maximebrmd/notion-axi.git"
+  },
   "keywords": [
-    "axi",
     "notion",
     "cli",
     "agent",
-    "ai",
-    "llm",
-    "toon"
+    "axi",
+    "toon",
+    "llm"
   ],
-  "license": "MIT",
-  "author": "Maxime Bourmaud <maxime.brmd@gmail.com>",
-  "type": "module",
   "bin": {
-    "notion-axi": "dist/cli.js"
+    "notion-axi": "./dist/bin/notion-axi.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills/notion-axi",
+    "LICENSE",
+    "README.md"
   ],
-  "engines": {
-    "node": ">=18"
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
-    "dev": "tsc -p tsconfig.json --watch",
-    "prepublishOnly": "pnpm run build",
-    "start": "node dist/cli.js"
+    "build": "tsc",
+    "build:skill": "tsx scripts/build-skill.ts",
+    "dev": "tsx bin/notion-axi.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "license": "MIT",
+  "author": "Maxime Bourmaud (maximebrmd)",
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@notionhq/client": "^5.22.0",
     "axi-sdk-js": "^0.1.7"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^3.0.0"
   }
 }

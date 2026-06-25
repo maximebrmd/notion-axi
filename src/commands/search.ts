@@ -1,4 +1,21 @@
-import { call, getClient, intFlag, objectTitle, parseArgs, shortDate, usage, type Obj } from "../lib.js";
+import { intFlag, parseArgs } from "../args.js";
+import { usage } from "../errors.js";
+import { objectTitle, shortDate, type Obj } from "../format.js";
+import { call, getClient } from "../notion.js";
+
+export const SEARCH_HELP = `usage: notion-axi search <query> [flags]
+
+Search pages and databases shared with the integration, newest first.
+
+flags:
+  --type <page|db>   Restrict to pages or databases
+  --limit <n>        Max results (default 25)
+
+examples:
+  notion-axi search roadmap
+  notion-axi search "Q3 planning" --type page
+  notion-axi search tasks --type db --limit 50
+`;
 
 const TYPE_FILTER: Record<string, "page" | "data_source"> = {
   page: "page",
@@ -17,7 +34,11 @@ export async function searchCommand(args: string[]) {
   let filter: { property: "object"; value: "page" | "data_source" } | undefined;
   if (flags.type) {
     const value = TYPE_FILTER[String(flags.type).toLowerCase()];
-    if (!value) throw usage(`Unknown --type "${flags.type}"`, "Use --type page or --type db");
+    if (!value)
+      throw usage(
+        `Unknown --type "${flags.type}"`,
+        "Use --type page or --type db",
+      );
     filter = { property: "object", value };
   }
 
@@ -58,7 +79,9 @@ export async function searchCommand(args: string[]) {
     help: [
       "Run `notion-axi page view <id>` to read a page",
       "Run `notion-axi db query <id>` to list database rows",
-      results.length >= limit ? "Raise the cap with `--limit <n>`" : undefined,
+      res.has_more && limit < 100
+        ? "Raise the cap with `--limit <n>` for more"
+        : undefined,
     ].filter(Boolean),
   };
 }
