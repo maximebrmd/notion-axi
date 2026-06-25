@@ -31,6 +31,7 @@ describe("command dispatch", () => {
     expect(await run(["page", "view", "x"])).toContain("AUTH_REQUIRED");
     expect(await run(["db", "query", "x"])).toContain("AUTH_REQUIRED");
     expect(await run(["users"])).toContain("AUTH_REQUIRED");
+    expect(await run(["api", "users/me"])).toContain("AUTH_REQUIRED");
   });
 
   it("routes setup to its handler (validation error, no filesystem writes)", async () => {

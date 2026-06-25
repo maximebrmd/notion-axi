@@ -1,4 +1,4 @@
-import { intFlag, parseArgs } from "../args.js";
+import { intFlag, listFlag, parseArgs } from "../args.js";
 import { usage } from "../errors.js";
 import { objectTitle, shortDate, type Obj } from "../format.js";
 import { call, getClient } from "../notion.js";
@@ -10,11 +10,13 @@ Search pages and databases shared with the integration, newest first.
 flags:
   --type <page|db>   Restrict to pages or databases
   --limit <n>        Max results (default 25)
+  --fields <list>    Add extra columns to each result (available: url)
 
 examples:
   notion-axi search roadmap
   notion-axi search "Q3 planning" --type page
   notion-axi search tasks --type db --limit 50
+  notion-axi search roadmap --fields url
 `;
 
 const TYPE_FILTER: Record<string, "page" | "data_source"> = {
@@ -52,11 +54,13 @@ export async function searchCommand(args: string[]) {
     }),
   );
 
+  const withUrl = listFlag(flags.fields).includes("url");
   const results = (res.results ?? []).slice(0, limit).map((r: Obj) => ({
     id: r.id,
     title: objectTitle(r),
     type: r.object === "data_source" ? "database" : r.object,
     edited: shortDate(r.last_edited_time),
+    ...(withUrl ? { url: r.url } : {}),
   }));
 
   if (results.length === 0) {
