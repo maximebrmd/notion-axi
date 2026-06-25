@@ -63,7 +63,7 @@ describe("db query --fields", () => {
     },
   };
 
-  it("selects only the requested columns, ignoring unknown names and the title", async () => {
+  it("selects only the requested columns, ignoring the title", async () => {
     client({
       dataSources: {
         retrieve: vi.fn().mockResolvedValue({ properties: schema }),
@@ -76,10 +76,34 @@ describe("db query --fields", () => {
       "--source",
       "ds",
       "--fields",
-      "Stage,Nope,Name",
+      "Stage,Name",
     ]);
     expect(Object.keys(out.rows[0])).toEqual(["id", "title", "Stage"]);
     expect(out.help.some((h: string) => h.includes("--full"))).toBe(false);
+  });
+
+  it("errors when a requested column does not exist", async () => {
+    client({
+      dataSources: {
+        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
+        query: vi.fn().mockResolvedValue({ results: [row], has_more: false }),
+      },
+    });
+    await expect(
+      dbCommand(["query", "x", "--source", "ds", "--fields", "Stage,Nope"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("pluralizes the error when several columns are unknown", async () => {
+    client({
+      dataSources: {
+        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
+        query: vi.fn().mockResolvedValue({ results: [row], has_more: false }),
+      },
+    });
+    await expect(
+      dbCommand(["query", "x", "--source", "ds", "--fields", "Nope,Nada"]),
+    ).rejects.toThrow(/Unknown columns: Nope, Nada/);
   });
 });
 
