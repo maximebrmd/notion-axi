@@ -22,14 +22,12 @@ npx skills add maximebrmd/notion-axi --skill notion-axi -g
 
 That is the entire setup — no global install needed. The skill teaches your agent to run notion-axi through `npx -y notion-axi`, so the CLI comes along on demand.
 
-You still need a Notion token in `NOTION_TOKEN` (Node 20+ required). Either works:
+You still need a Notion token (Node 20+ required). The quickest is a **Personal Access Token** — no page-sharing required:
 
-- **Personal Access Token** (recommended) — create one at <https://www.notion.so/developers/tokens>. It acts as you, so it sees everything you can without sharing pages individually.
-- **Internal integration secret** — create one at <https://www.notion.so/my-integrations>, then share each page/database with the integration (its `•••` menu → **Connections**).
+1. Create one at <https://www.notion.so/developers/tokens> → **New personal access token** → capabilities **Notion API**.
+2. Export it: `export NOTION_TOKEN=ntn_xxxxxxxx`.
 
-Then export it: `export NOTION_TOKEN=ntn_xxxxxxxx`.
-
-> An internal integration only sees content explicitly shared with it. With one, a "not found" error almost always means the object hasn't been shared.
+That's it — a PAT acts as you, so it can already see everything you can. See [Authentication](#authentication) for the alternative (an internal integration) and the trade-offs.
 
 `-g` installs the skill for all projects (`~/.claude/skills/`); drop it to install for the current project only (`.claude/skills/`).
 
@@ -55,6 +53,29 @@ notion-axi setup hooks
 ```
 
 This installs a `SessionStart` hook for **Claude Code**, **Codex**, and **OpenCode** that surfaces recent workspace state at the start of each session. **Restart your agent session after running this** so the new hook takes effect.
+
+## Authentication
+
+notion-axi reads a Notion token from `NOTION_TOKEN` (or `NOTION_API_KEY`). Each user supplies their **own** token — notion-axi never ships one, so it only ever touches _your_ workspace. Two kinds of token work, used identically:
+
+### Personal Access Token — recommended
+
+A [PAT](https://developers.notion.com/guides/get-started/personal-access-tokens) is a user-scoped token that **acts as you**: it can already access everything you can in Notion, with **no page-sharing step**. Ideal for a personal CLI / agent.
+
+1. <https://www.notion.so/developers/tokens> → **New personal access token** → name it, pick the workspace, capabilities **Notion API**.
+2. `export NOTION_TOKEN=ntn_…` (in your shell profile, or a local `.env`).
+
+> A PAT expires after a year and inherits all of your permissions — store it like a password and never commit it. Note: Notion blocks PATs from listing workspace users, so `notion-axi users` needs an internal integration instead.
+
+### Internal integration
+
+An [internal integration](https://www.notion.so/my-integrations) is a workspace-scoped bot with a static secret. It only sees pages **explicitly shared** with it (via a page's `•••` → **Connections**), which is useful when you want to scope access narrowly.
+
+1. <https://www.notion.so/my-integrations> → **New integration** (internal) → copy the secret.
+2. `export NOTION_TOKEN=ntn_…`
+3. Share each page/database with the integration.
+
+> Why not OAuth? Public/OAuth connections require a hosted backend holding a client secret (Notion's token exchange is a confidential client with no PKCE) — that's a service to run, not something a distributable `npx` CLI can do. A PAT gives the same "acts as you" result with zero infrastructure.
 
 ## Usage
 

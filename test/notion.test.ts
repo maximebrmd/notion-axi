@@ -3,13 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@notionhq/client", () => ({
   Client: class {
     auth: unknown;
-    constructor(opts: { auth: unknown }) {
+    logger: ((...args: unknown[]) => void) | undefined;
+    constructor(opts: {
+      auth: unknown;
+      logger?: (...args: unknown[]) => void;
+    }) {
       this.auth = opts.auth;
+      this.logger = opts.logger;
     }
   },
   APIErrorCode: {
     Unauthorized: "unauthorized",
     ObjectNotFound: "object_not_found",
+    RestrictedResource: "restricted_resource",
   },
   isNotionClientError: vi.fn(),
 }));
@@ -49,10 +55,16 @@ describe("getClient / hasToken", () => {
     }
   });
 
-  it("builds a client from NOTION_TOKEN", () => {
+  it("builds a client from NOTION_TOKEN with a silent logger", () => {
     process.env.NOTION_TOKEN = "ntn_abc";
     expect(hasToken()).toBe(true);
-    expect((getClient() as unknown as { auth: string }).auth).toBe("ntn_abc");
+    const client = getClient() as unknown as {
+      auth: string;
+      logger: (...args: unknown[]) => void;
+    };
+    expect(client.auth).toBe("ntn_abc");
+    // the no-op logger keeps SDK diagnostics off stderr
+    expect(client.logger("info", "msg", {})).toBeUndefined();
   });
 
   it("falls back to NOTION_API_KEY", () => {
@@ -88,6 +100,18 @@ describe("call — error translation", () => {
     }).catch((e) => e);
     expect(err.code).toBe("OBJECT_NOT_FOUND");
     expect(err.suggestions.join(" ")).toMatch(/Connections/);
+  });
+
+  it("explains RestrictedResource (e.g. PATs cannot list users)", async () => {
+    vi.mocked(isNotionClientError).mockReturnValue(true);
+    const err = await call(async () => {
+      throw notionError(
+        "restricted_resource",
+        "Personal access tokens cannot list users.",
+      );
+    }).catch((e) => e);
+    expect(err.code).toBe("RESTRICTED_RESOURCE");
+    expect(err.suggestions.join(" ")).toMatch(/personal access tokens/i);
   });
 
   it("maps other Notion error codes with no suggestions", async () => {

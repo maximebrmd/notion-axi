@@ -27,7 +27,7 @@ Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for N
 You do not need notion-axi installed globally — invoke it with \`npx -y notion-axi <command>\`.
 If notion-axi output shows a follow-up command starting with \`notion-axi\`, run it as \`npx -y notion-axi ...\` instead.
 
-notion-axi reads \`NOTION_TOKEN\` from the environment — either a Personal Access Token (recommended; acts as the user and needs no page-sharing, created at https://www.notion.so/developers/tokens) or an internal integration secret. If a command fails with an authentication error, ask the user to create a token, export \`NOTION_TOKEN\`, and — for an internal integration — share the relevant pages/databases with it (••• → Connections).
+notion-axi reads \`NOTION_TOKEN\` (or \`NOTION_API_KEY\`) from the environment. If a command fails with an authentication error, ask the user to set one up. The quickest is a **personal access token** (https://www.notion.so/developers/tokens → New personal access token, capabilities Notion API) — it acts as the user, so it can already reach everything they can with no page-sharing step. The alternative is an internal integration (https://www.notion.so/my-integrations), which only sees pages explicitly shared with it (••• → Connections). One exception: \`users\` cannot run under a PAT — that command needs an internal integration token.
 
 ## When to use
 
@@ -58,7 +58,7 @@ Run \`npx -y notion-axi --help\` for global flags, or \`npx -y notion-axi <comma
 ## Tips
 
 - Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
-- A Personal Access Token (recommended) acts as you and needs no page-sharing; an internal integration only sees pages explicitly shared with it (a "not found" error usually means it wasn't shared).
+- An integration only sees content explicitly shared with it — with an integration token, a "not found" error usually means the page/database has not been shared (a PAT is not subject to this).
 - For \`db\` commands, \`<id>\` may be a database or a data-source id; a database resolves to its first data source automatically (use \`--source <id>\` to target a specific one).
 - Lists are minimal by default — add \`--fields url\` (search) or \`--fields a,b\` (db query) to widen, or \`--full\` for all database columns.
 - Page bodies are markdown via the Notion API, so \`--append\`/\`--replace\` and \`--content\` all take markdown (or read it from a file with the \`--*-file\` flags).
