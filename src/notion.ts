@@ -7,12 +7,14 @@ export function getClient(): Client {
   const token = process.env.NOTION_TOKEN ?? process.env.NOTION_API_KEY;
   if (!token) {
     throw new AxiError("NOTION_TOKEN is not set", "AUTH_REQUIRED", [
-      "Create an internal integration: https://www.notion.so/my-integrations",
-      "Copy the Internal Integration Secret, then: export NOTION_TOKEN=ntn_...",
-      "Share each page/database with the integration via its ••• menu → Connections",
+      "Recommended — create a Personal Access Token: https://www.notion.so/developers/tokens (no page-sharing needed; acts as you)",
+      "Or an internal integration: https://www.notion.so/my-integrations, then share pages via ••• → Connections",
+      "Then: export NOTION_TOKEN=ntn_...",
     ]);
   }
-  return new Client({ auth: token });
+  // A no-op logger keeps the SDK's request diagnostics out of stderr; notion-axi
+  // surfaces failures itself as structured AxiErrors via call().
+  return new Client({ auth: token, logger: () => {} });
 }
 
 export function hasToken(): boolean {
@@ -34,6 +36,11 @@ export async function call<T>(fn: () => Promise<T>): Promise<T> {
       if (err.code === APIErrorCode.ObjectNotFound) {
         suggestions.push(
           "The object may not be shared with your integration — open it in Notion → ••• → Connections → add your integration",
+        );
+      }
+      if (err.code === APIErrorCode.RestrictedResource) {
+        suggestions.push(
+          "This token isn't permitted for that action — personal access tokens cannot list users; use an internal integration token if you need `users`",
         );
       }
       throw new AxiError(err.message ?? "Notion API error", code, suggestions);
