@@ -13,7 +13,10 @@ import { main } from "../src/cli.js";
 
 function capture() {
   let out = "";
-  return { stdout: { write: (c: string) => ((out += c), true) }, read: () => out };
+  return {
+    stdout: { write: (c: string) => ((out += c), true) },
+    read: () => out,
+  };
 }
 
 const HINT = "Raise the cap with";
@@ -21,12 +24,19 @@ const HINT = "Raise the cap with";
 async function runSearch(limit: number, has_more: boolean) {
   search.mockResolvedValueOnce({
     results: [
-      { id: "p1", object: "page", last_edited_time: "2026-06-25T00:00:00.000Z" },
+      {
+        id: "p1",
+        object: "page",
+        last_edited_time: "2026-06-25T00:00:00.000Z",
+      },
     ],
     has_more,
   });
   const c = capture();
-  await main({ argv: ["search", "roadmap", "--limit", String(limit)], stdout: c.stdout });
+  await main({
+    argv: ["search", "roadmap", "--limit", String(limit)],
+    stdout: c.stdout,
+  });
   return c.read();
 }
 
