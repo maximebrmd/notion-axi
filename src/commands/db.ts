@@ -102,7 +102,7 @@ async function dbView(args: string[]) {
   return {
     database: {
       id: r.dbId ?? id,
-      title: r.dbTitle ?? richTextToPlain(ds.title) ?? "(untitled)",
+      title: r.dbTitle ?? (richTextToPlain(ds.title) || "(untitled)"),
       url: r.dbUrl ?? ds.url,
     },
     data_sources:
