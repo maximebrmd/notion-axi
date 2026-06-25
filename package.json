@@ -1,0 +1,40 @@
+{
+  "name": "notion-axi",
+  "version": "0.1.0",
+  "description": "Agent eXperience Interface (AXI) for Notion — a token-efficient CLI for AI agents to search, read, and write Notion pages and databases.",
+  "keywords": [
+    "axi",
+    "notion",
+    "cli",
+    "agent",
+    "ai",
+    "llm",
+    "toon"
+  ],
+  "license": "MIT",
+  "author": "Maxime Bourmaud <maxime.brmd@gmail.com>",
+  "type": "module",
+  "bin": {
+    "notion-axi": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "dev": "tsc -p tsconfig.json --watch",
+    "prepublishOnly": "pnpm run build",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^5.22.0",
+    "axi-sdk-js": "^0.1.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
