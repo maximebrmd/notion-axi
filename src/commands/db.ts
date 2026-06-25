@@ -165,7 +165,7 @@ async function dbQuery(args: string[]) {
       !full && others.length > cols.length
         ? `Run \`notion-axi db query ${id} --full\` to see all ${others.length} columns`
         : undefined,
-      res.has_more ? "Raise the cap with `--limit <n>` for more" : undefined,
+      res.has_more && limit <= 100 ? "Raise the cap with `--limit <n>` for more" : undefined,
     ].filter(Boolean),
   };
 }
