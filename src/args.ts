@@ -47,3 +47,12 @@ export function intFlag(
   const n = Number.parseInt(value, 10);
   return Number.isFinite(n) ? n : fallback;
 }
+
+/** Parse a comma-separated `--fields a,b,c` flag into a trimmed, non-empty list. */
+export function listFlag(value: string | boolean | undefined): string[] {
+  if (typeof value !== "string") return [];
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}

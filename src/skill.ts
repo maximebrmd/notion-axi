@@ -40,14 +40,15 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 3. \`page view <id>\` reads properties and the markdown body (previewed to ~1500 chars; add \`--full\` for everything).
 4. \`db view <id>\` shows a database's schema; \`db query <id>\` lists rows (title + 3 columns; \`--full\` for all, \`--limit <n>\` for more).
 5. \`page create --parent <id> --title <text>\` creates a page; add \`--db\` when \`--parent\` is a database id, and \`--content <markdown>\` to seed the body.
-6. \`page update <id> --append <markdown>\` (or \`--replace\`) edits content.
-7. Every response ends with contextual next-step hints under \`help:\` — follow them.
+6. \`page update <id> --append <markdown>\` (or \`--replace\`) edits content. For long bodies, use \`--content-file\`/\`--append-file\`/\`--replace-file <path>\`.
+7. \`api <method> <path> [--body <json>]\` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
+8. Every response ends with contextual next-step hints under \`help:\` — follow them.
 
 ## Commands
 
 \`\`\`
-commands[6]:
-  (none)=home, search, page, db, users, setup
+commands[7]:
+  (none)=home, search, page, db, users, api, setup
   page subcommands: view, create, update
   db subcommands: view, query
 \`\`\`
@@ -57,9 +58,10 @@ Run \`npx -y notion-axi --help\` for global flags, or \`npx -y notion-axi <comma
 ## Tips
 
 - Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
-- An integration only sees content explicitly shared with it — with an integration token, a "not found" error usually means the page/database has not been shared (a PAT is not subject to this).
+- A Personal Access Token (recommended) acts as you and needs no page-sharing; an internal integration only sees pages explicitly shared with it (a "not found" error usually means it wasn't shared).
 - For \`db\` commands, \`<id>\` may be a database or a data-source id; a database resolves to its first data source automatically (use \`--source <id>\` to target a specific one).
-- Page bodies are markdown via the Notion API, so \`--append\`/\`--replace\` and \`--content\` all take markdown.
+- Lists are minimal by default — add \`--fields url\` (search) or \`--fields a,b\` (db query) to widen, or \`--full\` for all database columns.
+- Page bodies are markdown via the Notion API, so \`--append\`/\`--replace\` and \`--content\` all take markdown (or read it from a file with the \`--*-file\` flags).
 - Exit codes: 0 success, 1 error, 2 usage. Errors are structured with an \`error\`, \`code\`, and \`help\` list.
 `;
 }

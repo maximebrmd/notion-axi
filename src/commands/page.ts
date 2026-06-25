@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
 import {
@@ -17,21 +18,49 @@ subcommands:
       Show properties and the page body (markdown). Body is previewed to
       ~1500 chars unless --full is given.
 
-  create --parent <id> --title <text> [--content <markdown>] [--db]
+  create --parent <id> --title <text> [--content <md> | --content-file <path>] [--db]
       Create a page. By default --parent is a page id; pass --db to create
       the page as a row inside a database (data source) id instead.
 
-  update <id> (--append <markdown> | --replace <markdown>)
+  update <id> (--append <md> | --append-file <path> | --replace <md> | --replace-file <path>)
       Append markdown to the end of a page, or replace its entire content.
+
+For long or multi-line markdown, the --*-file flags read the body from a UTF-8
+file instead of the command line.
 
 examples:
   notion-axi page view 24f1e2a3b4c5...
   notion-axi page create --parent 24f1... --title "Meeting notes" --content "# Agenda"
+  notion-axi page create --parent 24f1... --title "Spec" --content-file ./spec.md
   notion-axi page create --parent 9ab2... --title "New task" --db
   notion-axi page update 24f1... --append "## Follow-ups"
+  notion-axi page update 24f1... --replace-file ./body.md
 `;
 
 const BODY_PREVIEW = 1500;
+
+/** Resolve markdown from an inline `--<name>` flag or a `--<name>-file` path. */
+function contentFrom(
+  flags: Record<string, string | boolean>,
+  name: string,
+): string | undefined {
+  const inline = strFlag(flags[name]);
+  const file = strFlag(flags[`${name}-file`]);
+  if (file !== undefined) {
+    if (inline !== undefined) {
+      throw usage(`Pass only one of --${name} or --${name}-file`);
+    }
+    try {
+      return readFileSync(file, "utf8");
+    } catch {
+      throw usage(
+        `Cannot read file: ${file}`,
+        `Check the path passed to --${name}-file`,
+      );
+    }
+  }
+  return inline;
+}
 
 export async function pageCommand(args: string[]) {
   const sub = args[0];
@@ -141,7 +170,7 @@ async function pageCreate(args: string[]) {
     }),
   );
 
-  const content = strFlag(flags.content);
+  const content = contentFrom(flags, "content");
   if (content !== undefined) {
     await call(() =>
       notion.pages.updateMarkdown({
@@ -172,8 +201,8 @@ async function pageUpdate(args: string[]) {
       "Run `notion-axi page update <id> --append <markdown>`",
     );
 
-  const append = strFlag(flags.append);
-  const replace = strFlag(flags.replace);
+  const append = contentFrom(flags, "append");
+  const replace = contentFrom(flags, "replace");
   if (append === undefined && replace === undefined) {
     throw usage(
       "Nothing to update",
