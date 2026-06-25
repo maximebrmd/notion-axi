@@ -1,5 +1,5 @@
 import { isNotionClientError } from "@notionhq/client";
-import { intFlag, parseArgs, strFlag } from "../args.js";
+import { intFlag, listFlag, parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
 import {
   objectTitle,
@@ -15,14 +15,16 @@ subcommands:
   view <id> [--source <data_source_id>]
       List the database's data sources and property schema.
 
-  query <id> [--limit <n>] [--full] [--source <data_source_id>]
+  query <id> [--limit <n>] [--full] [--fields <list>] [--source <data_source_id>]
       List rows as a table. Shows the title + first 3 columns by default;
-      --full includes every column. <id> may be a database or data-source id.
+      --full includes every column, or --fields <a,b> picks specific ones.
+      <id> may be a database or data-source id.
 
 examples:
   notion-axi db view 1f0a...
   notion-axi db query 1f0a... --limit 50
   notion-axi db query 1f0a... --full
+  notion-axi db query 1f0a... --fields Stage,Company
 `;
 
 export async function dbCommand(args: string[]) {
@@ -130,7 +132,20 @@ async function dbQuery(args: string[]) {
   const names = Object.keys(ds.properties ?? {});
   const titleName = names.find((n) => ds.properties[n]?.type === "title");
   const others = names.filter((n) => n !== titleName);
-  const cols = full ? others : others.slice(0, 3);
+  const asked = listFlag(flags.fields);
+  const unknown = asked.filter((n) => !names.includes(n));
+  if (unknown.length) {
+    throw usage(
+      `Unknown column${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}`,
+      `Run \`notion-axi db view ${id}\` to see valid column names`,
+    );
+  }
+  const requested = asked.filter((n) => n !== titleName);
+  const cols = requested.length
+    ? requested
+    : full
+      ? others
+      : others.slice(0, 3);
 
   const res: Obj = await call(() =>
     notion.dataSources.query({
@@ -162,7 +177,7 @@ async function dbQuery(args: string[]) {
     columns_shown: (titleName ? 1 : 0) + cols.length,
     help: [
       "Run `notion-axi page view <id>` to open a row",
-      !full && others.length > cols.length
+      !full && requested.length === 0 && others.length > cols.length
         ? `Run \`notion-axi db query ${id} --full\` to see all ${others.length} columns`
         : undefined,
       res.has_more && limit < 100
