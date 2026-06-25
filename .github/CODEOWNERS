@@ -1,0 +1,7 @@
+# Changes to the CI gates and the files they guard require code-owner review,
+# so a PR cannot weaken or no-op a gate by editing it in the same PR.
+/.github/workflows/ @maximebrmd
+/.github/CODEOWNERS @maximebrmd
+/CHANGELOG.md @maximebrmd
+/.release-please-manifest.json @maximebrmd
+/skills/notion-axi/SKILL.md @maximebrmd
