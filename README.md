@@ -22,13 +22,14 @@ npx skills add maximebrmd/notion-axi --skill notion-axi -g
 
 That is the entire setup — no global install needed. The skill teaches your agent to run notion-axi through `npx -y notion-axi`, so the CLI comes along on demand.
 
-You still need a Notion **internal integration** token (Node 20+ required):
+You still need a Notion token in `NOTION_TOKEN` (Node 20+ required). Either works:
 
-1. Create an integration at <https://www.notion.so/my-integrations>.
-2. Export the secret: `export NOTION_TOKEN=ntn_xxxxxxxx`.
-3. Share each page/database with the integration (its `•••` menu → **Connections**).
+- **Personal Access Token** (recommended) — create one at <https://www.notion.so/developers/tokens>. It acts as you, so it sees everything you can without sharing pages individually.
+- **Internal integration secret** — create one at <https://www.notion.so/my-integrations>, then share each page/database with the integration (its `•••` menu → **Connections**).
 
-> An integration only sees content explicitly shared with it. A "not found" error almost always means the object hasn't been shared.
+Then export it: `export NOTION_TOKEN=ntn_xxxxxxxx`.
+
+> An internal integration only sees content explicitly shared with it. With one, a "not found" error almost always means the object hasn't been shared.
 
 `-g` installs the skill for all projects (`~/.claude/skills/`); drop it to install for the current project only (`.claude/skills/`).
 

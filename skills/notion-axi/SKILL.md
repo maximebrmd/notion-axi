@@ -16,7 +16,7 @@ Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for N
 You do not need notion-axi installed globally — invoke it with `npx -y notion-axi <command>`.
 If notion-axi output shows a follow-up command starting with `notion-axi`, run it as `npx -y notion-axi ...` instead.
 
-notion-axi authenticates with an internal integration token. It reads `NOTION_TOKEN` from the environment. If a command fails with an authentication error, ask the user to create an integration at https://www.notion.so/my-integrations, export `NOTION_TOKEN`, and share the relevant pages/databases with it (••• → Connections).
+notion-axi reads `NOTION_TOKEN` from the environment — either a Personal Access Token (recommended; acts as the user and needs no page-sharing, created at https://www.notion.so/developers/tokens) or an internal integration secret. If a command fails with an authentication error, ask the user to create a token, export `NOTION_TOKEN`, and — for an internal integration — share the relevant pages/databases with it (••• → Connections).
 
 ## When to use
 
