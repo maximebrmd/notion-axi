@@ -132,9 +132,15 @@ async function dbQuery(args: string[]) {
   const names = Object.keys(ds.properties ?? {});
   const titleName = names.find((n) => ds.properties[n]?.type === "title");
   const others = names.filter((n) => n !== titleName);
-  const requested = listFlag(flags.fields).filter(
-    (n) => names.includes(n) && n !== titleName,
-  );
+  const asked = listFlag(flags.fields);
+  const unknown = asked.filter((n) => !names.includes(n));
+  if (unknown.length) {
+    throw usage(
+      `Unknown column${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}`,
+      `Run \`notion-axi db view ${id}\` to see valid column names`,
+    );
+  }
+  const requested = asked.filter((n) => n !== titleName);
   const cols = requested.length
     ? requested
     : full
