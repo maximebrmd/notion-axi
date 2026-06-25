@@ -79,7 +79,7 @@ export async function searchCommand(args: string[]) {
     help: [
       "Run `notion-axi page view <id>` to read a page",
       "Run `notion-axi db query <id>` to list database rows",
-      res.has_more && limit <= 100
+      res.has_more && limit < 100
         ? "Raise the cap with `--limit <n>` for more"
         : undefined,
     ].filter(Boolean),

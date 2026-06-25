@@ -46,7 +46,7 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 ## Commands
 
 \`\`\`
-commands[7]:
+commands[6]:
   (none)=home, search, page, db, users, setup
   page subcommands: view, create, update
   db subcommands: view, query
