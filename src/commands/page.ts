@@ -1,16 +1,35 @@
+import { parseArgs, strFlag } from "../args.js";
+import { usage } from "../errors.js";
 import {
-  call,
-  getClient,
-  intFlag,
   objectTitle,
-  parseArgs,
   propertyValue,
   shortDate,
   truncate,
-  usage,
   type Obj,
   type Truncated,
-} from "../lib.js";
+} from "../format.js";
+import { call, getClient } from "../notion.js";
+
+export const PAGE_HELP = `usage: notion-axi page <view|create|update> ...
+
+subcommands:
+  view <id> [--full]
+      Show properties and the page body (markdown). Body is previewed to
+      ~1500 chars unless --full is given.
+
+  create --parent <id> --title <text> [--content <markdown>] [--db]
+      Create a page. By default --parent is a page id; pass --db to create
+      the page as a row inside a database (data source) id instead.
+
+  update <id> (--append <markdown> | --replace <markdown>)
+      Append markdown to the end of a page, or replace its entire content.
+
+examples:
+  notion-axi page view 24f1e2a3b4c5...
+  notion-axi page create --parent 24f1... --title "Meeting notes" --content "# Agenda"
+  notion-axi page create --parent 9ab2... --title "New task" --db
+  notion-axi page update 24f1... --append "## Follow-ups"
+`;
 
 const BODY_PREVIEW = 1500;
 
@@ -42,10 +61,16 @@ async function pageView(args: string[]) {
 
   const notion = getClient();
   const page: Obj = await call(() => notion.pages.retrieve({ page_id: id }));
-  const md: Obj = await call(() => notion.pages.retrieveMarkdown({ page_id: id }));
+  const md: Obj = await call(() =>
+    notion.pages.retrieveMarkdown({ page_id: id }),
+  );
 
   const properties = Object.entries(page.properties ?? {})
-    .map(([name, prop]) => ({ name, type: (prop as Obj).type, value: propertyValue(prop as Obj) }))
+    .map(([name, prop]) => ({
+      name,
+      type: (prop as Obj).type,
+      value: propertyValue(prop as Obj),
+    }))
     .filter((p) => p.value !== null && p.value !== "");
 
   const markdown = md.markdown ?? "";
@@ -68,10 +93,8 @@ async function pageView(args: string[]) {
     out.body_truncated = true;
     out.body_chars_shown = view.text.length;
     if (view.total) out.body_chars_total = view.total;
-    out.help = [`Run \`notion-axi page view ${id} --full\` for the complete body`];
-  } else {
     out.help = [
-      `Run \`notion-axi page update ${id} --append <markdown>\` to add content`,
+      `Run \`notion-axi page view ${id} --full\` for the complete body`,
     ];
   }
   return out;
@@ -79,19 +102,31 @@ async function pageView(args: string[]) {
 
 async function pageCreate(args: string[]) {
   const { flags } = parseArgs(args, ["db"]);
-  const parent = typeof flags.parent === "string" ? flags.parent : undefined;
-  const title = typeof flags.title === "string" ? flags.title : undefined;
-  if (!parent) throw usage("Missing --parent", "Run `notion-axi page create --parent <id> --title <text>`");
-  if (!title) throw usage("Missing --title", "Run `notion-axi page create --parent <id> --title <text>`");
+  const parent = strFlag(flags.parent);
+  const title = strFlag(flags.title);
+  if (!parent)
+    throw usage(
+      "Missing --parent",
+      "Run `notion-axi page create --parent <id> --title <text>`",
+    );
+  if (!title)
+    throw usage(
+      "Missing --title",
+      "Run `notion-axi page create --parent <id> --title <text>`",
+    );
 
   const notion = getClient();
   let parentRef: Obj;
   let properties: Obj;
 
   if (flags.db === true) {
-    const ds: Obj = await call(() => notion.dataSources.retrieve({ data_source_id: parent }));
+    const ds: Obj = await call(() =>
+      notion.dataSources.retrieve({ data_source_id: parent }),
+    );
     const titleProp =
-      Object.keys(ds.properties ?? {}).find((k) => ds.properties[k]?.type === "title") ?? "Name";
+      Object.keys(ds.properties ?? {}).find(
+        (k) => ds.properties[k]?.type === "title",
+      ) ?? "Name";
     parentRef = { data_source_id: parent };
     properties = { [titleProp]: { title: [{ text: { content: title } }] } };
   } else {
@@ -100,15 +135,19 @@ async function pageCreate(args: string[]) {
   }
 
   const page: Obj = await call(() =>
-    notion.pages.create({ parent: parentRef as any, properties: properties as any }),
+    notion.pages.create({
+      parent: parentRef as any,
+      properties: properties as any,
+    }),
   );
 
-  if (typeof flags.content === "string") {
+  const content = strFlag(flags.content);
+  if (content !== undefined) {
     await call(() =>
       notion.pages.updateMarkdown({
         page_id: page.id,
         type: "insert_content",
-        insert_content: { content: flags.content as string, position: { type: "end" } },
+        insert_content: { content, position: { type: "end" } },
       }),
     );
   }
@@ -127,10 +166,14 @@ async function pageCreate(args: string[]) {
 async function pageUpdate(args: string[]) {
   const { positionals, flags } = parseArgs(args);
   const id = positionals[0];
-  if (!id) throw usage("Missing page id", "Run `notion-axi page update <id> --append <markdown>`");
+  if (!id)
+    throw usage(
+      "Missing page id",
+      "Run `notion-axi page update <id> --append <markdown>`",
+    );
 
-  const append = typeof flags.append === "string" ? flags.append : undefined;
-  const replace = typeof flags.replace === "string" ? flags.replace : undefined;
+  const append = strFlag(flags.append);
+  const replace = strFlag(flags.replace);
   if (append === undefined && replace === undefined) {
     throw usage(
       "Nothing to update",
@@ -153,7 +196,10 @@ async function pageUpdate(args: string[]) {
       notion.pages.updateMarkdown({
         page_id: id,
         type: "insert_content",
-        insert_content: { content: append as string, position: { type: "end" } },
+        insert_content: {
+          content: append as string,
+          position: { type: "end" },
+        },
       }),
     );
   }

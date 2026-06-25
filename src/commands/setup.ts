@@ -1,5 +1,14 @@
 import { installSessionStartHooks } from "axi-sdk-js";
-import { usage } from "../lib.js";
+import { usage } from "../errors.js";
+
+export const SETUP_HELP = `usage: notion-axi setup hooks
+
+Install session-start hooks so coding agents (Claude Code, Codex, OpenCode)
+load a compact Notion workspace view at the start of each session.
+
+examples:
+  notion-axi setup hooks
+`;
 
 export async function setupCommand(args: string[]) {
   if (args[0] !== "hooks") {
@@ -9,7 +18,10 @@ export async function setupCommand(args: string[]) {
     );
   }
 
-  installSessionStartHooks({ marker: "notion-axi", binaryNames: ["notion-axi"] });
+  installSessionStartHooks({
+    marker: "notion-axi",
+    binaryNames: ["notion-axi"],
+  });
 
   return {
     setup: "session-start hooks installed (or already up to date)",
