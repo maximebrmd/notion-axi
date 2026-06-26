@@ -94,7 +94,7 @@ notion-axi page update <id> --append "## Follow-ups"
 notion-axi page update <id> --set Status=Done --set "Due=2026-07-01"  # set row properties
 notion-axi page archive <id>                  # trash a page (--restore to undo)
 notion-axi page move <id> --to <parent_id>    # reparent a page
-notion-axi db create --parent <page_id> --title Tasks --prop Status:status --prop Due:date
+notion-axi db create --parent <page_id> --title Tasks --prop Stage:select --prop Due:date
 notion-axi db edit <id> --add Priority:select --remove OldField
 notion-axi comments add <id> "Looks good — shipping"
 notion-axi whoami                             # token identity (integration vs PAT)
