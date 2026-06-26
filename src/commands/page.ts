@@ -12,7 +12,7 @@ import {
 } from "../format.js";
 import { call, getClient } from "../notion.js";
 
-export const PAGE_HELP = `usage: notion-axi page <view|create|update|archive> ...
+export const PAGE_HELP = `usage: notion-axi page <view|create|update|archive|move> ...
 
 subcommands:
   view <id> [--full]
@@ -32,12 +32,16 @@ subcommands:
   archive <id> [--restore]
       Move a page to the trash, or restore it with --restore. Idempotent.
 
+  move <id> --to <parent> [--db]
+      Move a page under a new parent page (or a database with --db).
+
 examples:
   notion-axi page view 24f1...
   notion-axi page create --parent 9ab2... --title "New task" --db --set Status=Todo
   notion-axi page update 24f1... --append "## Follow-ups"
   notion-axi page update 24f1... --set Status=Done --set "Due=2026-07-01"
   notion-axi page archive 24f1...
+  notion-axi page move 24f1... --to 9ab2...
 `;
 
 const BODY_PREVIEW = 1500;
@@ -102,6 +106,8 @@ export async function pageCommand(args: string[]) {
       return pageUpdate(rest);
     case "archive":
       return pageArchive(rest);
+    case "move":
+      return pageMove(rest);
     default:
       throw usage(
         sub ? `Unknown page subcommand "${sub}"` : "Missing page subcommand",
@@ -109,6 +115,7 @@ export async function pageCommand(args: string[]) {
         "Run `notion-axi page create --parent <id> --title <text>`",
         "Run `notion-axi page update <id> --set Name=value`",
         "Run `notion-axi page archive <id>`",
+        "Run `notion-axi page move <id> --to <parent>`",
       );
   }
 }
@@ -318,5 +325,32 @@ async function pageArchive(args: string[]) {
     help: target
       ? [`Run \`notion-axi page archive ${id} --restore\` to undo`]
       : undefined,
+  };
+}
+
+async function pageMove(args: string[]) {
+  const { positionals, flags } = parseArgs(args, ["db"]);
+  const id = positionals[0];
+  if (!id) {
+    throw usage(
+      "Missing page id",
+      "Run `notion-axi page move <id> --to <parent>`",
+    );
+  }
+  const to = strFlag(flags.to);
+  if (!to) {
+    throw usage(
+      "Missing --to",
+      "Run `notion-axi page move <id> --to <parent_page_id>` (add --db if the parent is a database)",
+    );
+  }
+  const parent = flags.db === true ? { data_source_id: to } : { page_id: to };
+
+  const notion = getClient();
+  await call(() => notion.pages.move({ page_id: id, parent } as any));
+  return {
+    moved: id,
+    to,
+    help: [`Run \`notion-axi page view ${id}\` to confirm`],
   };
 }

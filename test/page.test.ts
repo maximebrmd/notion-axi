@@ -304,3 +304,23 @@ describe("page archive", () => {
     await expect(pageCommand(["archive"])).rejects.toBeInstanceOf(AxiError);
   });
 });
+
+describe("page move", () => {
+  it("moves under a page parent, or a database with --db", async () => {
+    const move = vi.fn().mockResolvedValue({});
+    setClient({ pages: { move } });
+    await pageCommand(["move", "p1", "--to", "par"]);
+    expect(move.mock.calls[0][0].parent).toEqual({ page_id: "par" });
+
+    const move2 = vi.fn().mockResolvedValue({});
+    setClient({ pages: { move: move2 } });
+    await pageCommand(["move", "p1", "--to", "ds", "--db"]);
+    expect(move2.mock.calls[0][0].parent).toEqual({ data_source_id: "ds" });
+  });
+
+  it("requires an id and a --to parent", async () => {
+    setClient({});
+    await expect(pageCommand(["move"])).rejects.toBeInstanceOf(AxiError);
+    await expect(pageCommand(["move", "p1"])).rejects.toBeInstanceOf(AxiError);
+  });
+});

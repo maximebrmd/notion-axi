@@ -214,3 +214,105 @@ describe("db query", () => {
     expect(out.columns_shown).toBe(1);
   });
 });
+
+describe("db create", () => {
+  it("builds a schema and auto-adds a title property", async () => {
+    const create = vi.fn().mockResolvedValue({
+      id: "db1",
+      url: "u",
+      data_sources: [{ id: "ds1" }],
+    });
+    setClient({ databases: { create } });
+    const out: any = await dbCommand([
+      "create",
+      "--parent",
+      "pg",
+      "--title",
+      "Tasks",
+      "--prop",
+      "Stage:select",
+    ]);
+    const props = create.mock.calls[0][0].initial_data_source.properties;
+    expect(props.Stage).toEqual({ select: {} });
+    expect(props.Name).toEqual({ title: {} });
+    expect(out.created).toBe("db1");
+    expect(out.data_source).toBe("ds1");
+  });
+
+  it("uses a provided title prop instead of auto-adding one", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValue({ id: "db1", data_sources: [{ id: "ds1" }] });
+    setClient({ databases: { create } });
+    await dbCommand([
+      "create",
+      "--parent",
+      "pg",
+      "--title",
+      "T",
+      "--prop",
+      "Heading:title",
+    ]);
+    const props = create.mock.calls[0][0].initial_data_source.properties;
+    expect(props.Heading).toEqual({ title: {} });
+    expect(props.Name).toBeUndefined();
+  });
+
+  it("validates parent, title, prop format, and prop type", async () => {
+    setClient({});
+    await expect(dbCommand(["create", "--title", "T"])).rejects.toBeInstanceOf(
+      AxiError,
+    );
+    await expect(
+      dbCommand(["create", "--parent", "pg"]),
+    ).rejects.toBeInstanceOf(AxiError);
+    await expect(
+      dbCommand(["create", "--parent", "pg", "--title", "T", "--prop", "bad"]),
+    ).rejects.toBeInstanceOf(AxiError);
+    await expect(
+      dbCommand([
+        "create",
+        "--parent",
+        "pg",
+        "--title",
+        "T",
+        "--prop",
+        "X:formula",
+      ]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+});
+
+describe("db edit", () => {
+  it("adds and removes data-source properties", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    setClient({
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "db1",
+          data_sources: [{ id: "ds1", name: "d" }],
+        }),
+      },
+      dataSources: { update },
+    });
+    const out: any = await dbCommand([
+      "edit",
+      "db1",
+      "--add",
+      "Priority:select",
+      "--remove",
+      "Old",
+    ]);
+    const props = update.mock.calls[0][0].properties;
+    expect(props.Priority).toEqual({ select: {} });
+    expect(props.Old).toBeNull();
+    expect(out.added).toEqual(["Priority"]);
+    expect(out.removed).toEqual(["Old"]);
+  });
+
+  it("requires an id and at least one change", async () => {
+    setClient({});
+    await expect(dbCommand(["edit"])).rejects.toBeInstanceOf(AxiError);
+    await expect(dbCommand(["edit", "db1"])).rejects.toBeInstanceOf(AxiError);
+  });
+});

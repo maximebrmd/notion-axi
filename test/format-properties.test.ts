@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPropertySchema,
   buildPropertyValue,
   objectTitle,
   propertyValue,
@@ -214,5 +215,21 @@ describe("buildPropertyValue", () => {
   it("rejects a non-number and read-only types", () => {
     expect(() => buildPropertyValue("number", "abc")).toThrow(AxiError);
     expect(() => buildPropertyValue("formula", "x")).toThrow(AxiError);
+  });
+});
+
+describe("buildPropertySchema", () => {
+  it("builds settable property type configs", () => {
+    expect(buildPropertySchema("multi_select")).toEqual({ multi_select: {} });
+    expect(buildPropertySchema("select")).toEqual({ select: {} });
+    expect(buildPropertySchema("title")).toEqual({ title: {} });
+    expect(buildPropertySchema("date")).toEqual({ date: {} });
+  });
+  it("rejects computed/read-only types", () => {
+    expect(() => buildPropertySchema("formula")).toThrow(AxiError);
+    expect(() => buildPropertySchema("rollup")).toThrow(AxiError);
+  });
+  it("rejects status (Notion API cannot create it)", () => {
+    expect(() => buildPropertySchema("status")).toThrow(AxiError);
   });
 });
