@@ -1,6 +1,6 @@
 {
   "name": "notion-axi",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packageManager": "pnpm@11.8.0",
   "description": "AXI-compliant Notion CLI for agents — token-efficient TOON output, contextual suggestions, idempotent mutations",
   "type": "module",

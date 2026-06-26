@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.3.0...notion-axi-v0.4.0) (2026-06-26)
+
+
+### Features
+
+* add file upload command (multipart) with optional page attach ([#13](https://github.com/maximebrmd/notion-axi/issues/13)) ([3defb83](https://github.com/maximebrmd/notion-axi/commit/3defb83d2fe372177480cfb45400e9aca780e248))
+
 ## [0.3.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.2.0...notion-axi-v0.3.0) (2026-06-26)
 
 
