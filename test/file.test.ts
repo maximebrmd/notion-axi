@@ -80,6 +80,33 @@ describe("file upload", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("pins the stored name's extension to the real file when --name diverges", async () => {
+    const { dir, path } = tmpFile("orig.txt");
+    routeNtn(api, [
+      { path: "v1/file_uploads", method: "POST", res: { id: "fu4" } },
+      { path: /\/send$/, method: "POST", res: {} },
+    ]);
+    const out: any = await fileCommand(["upload", path, "--name", "shot.png"]);
+    expect(apiCall(api, "v1/file_uploads", "POST")?.[1].body).toMatchObject({
+      filename: "shot.png.txt",
+    });
+    expect(out.filename).toBe("shot.png.txt");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("keeps a --name override as-is when the real file has no extension", async () => {
+    const { dir, path } = tmpFile("rawfile");
+    routeNtn(api, [
+      { path: "v1/file_uploads", method: "POST", res: { id: "fu5" } },
+      { path: /\/send$/, method: "POST", res: {} },
+    ]);
+    await fileCommand(["upload", path, "--name", "report.pdf"]);
+    expect(apiCall(api, "v1/file_uploads", "POST")?.[1].body).toMatchObject({
+      filename: "report.pdf",
+    });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("rejects --attach and --name without a value", async () => {
     const { dir, path } = tmpFile("d.png");
     await expect(

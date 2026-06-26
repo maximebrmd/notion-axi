@@ -99,6 +99,19 @@ describe("db view", () => {
     await expect(dbCommand(["view", "db"])).rejects.toBeInstanceOf(AxiError);
   });
 
+  it("rethrows a non-object-not-found AxiError instead of swallowing it", async () => {
+    routeNtn(api, [
+      {
+        path: /^v1\/databases\//,
+        res: () => {
+          throw new AxiError("run `ntn login`", "AUTH_REQUIRED");
+        },
+      },
+    ]);
+    await expect(dbCommand(["view", "x"])).rejects.toThrow("run `ntn login`");
+    expect(apiCall(api, /^v1\/data_sources\//)).toBeUndefined();
+  });
+
   it("rethrows a non-AxiError raised while resolving", async () => {
     routeNtn(api, [
       {

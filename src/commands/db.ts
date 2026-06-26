@@ -88,8 +88,11 @@ async function resolve(id: string, source?: string): Promise<Resolved> {
   try {
     db = await ntnApi(`v1/databases/${id}`);
   } catch (e) {
-    // Not a database id (or not accessible) — assume it is a data_source id.
-    if (e instanceof AxiError) return { dsId: id, sources: [] };
+    // Not a database id — assume it is a data_source id. Only fall back when the
+    // object genuinely wasn't found; auth/install/other errors must surface.
+    if (e instanceof AxiError && e.code === "OBJECT_NOT_FOUND") {
+      return { dsId: id, sources: [] };
+    }
     throw e;
   }
   const sources = (db.data_sources ?? []) as Array<{

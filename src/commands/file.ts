@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, extname } from "node:path";
 import { parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
 import { ntnApi } from "../ntn.js";
@@ -29,6 +29,22 @@ export async function fileCommand(args: string[]) {
   return fileUpload(args.slice(1));
 }
 
+/**
+ * Notion infers a file's content type from the create-time filename's extension,
+ * while `ntn api --file` derives the sent content type from the bytes on disk. If
+ * a `--name` override carries a different extension than the real file the two
+ * diverge and Notion rejects the upload, so keep the stored name's extension in
+ * step with the actual file.
+ */
+function storedName(override: string | undefined, path: string): string {
+  if (override === undefined) return basename(path);
+  const ext = extname(path);
+  if (!ext || extname(override).toLowerCase() === ext.toLowerCase()) {
+    return override;
+  }
+  return override + ext;
+}
+
 async function fileUpload(args: string[]) {
   const { positionals, flags } = parseArgs(args);
   const path = positionals[0];
@@ -44,7 +60,7 @@ async function fileUpload(args: string[]) {
       "Missing page id for --attach",
       "Run `notion-axi file upload <path> --attach <page_id>`",
     );
-  const name = strFlag(flags.name) ?? basename(path);
+  const name = storedName(strFlag(flags.name), path);
   const attach = strFlag(flags.attach);
 
   let bytes: number;
