@@ -36,6 +36,16 @@ async function fileUpload(args: string[]) {
   const path = positionals[0];
   if (!path)
     throw usage("Missing file path", "Run `notion-axi file upload <path>`");
+  if (flags.name === true)
+    throw usage(
+      "Missing value for --name",
+      "Run `notion-axi file upload <path> --name <filename>`",
+    );
+  if (flags.attach === true)
+    throw usage(
+      "Missing page id for --attach",
+      "Run `notion-axi file upload <path> --attach <page_id>`",
+    );
   const name = strFlag(flags.name) ?? basename(path);
   const attach = strFlag(flags.attach);
 

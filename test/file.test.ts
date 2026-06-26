@@ -85,6 +85,18 @@ describe("file upload", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("rejects --attach and --name without a value", async () => {
+    const { dir, path } = tmpFile("d.png");
+    setClient({});
+    await expect(
+      fileCommand(["upload", path, "--attach"]),
+    ).rejects.toBeInstanceOf(AxiError);
+    await expect(
+      fileCommand(["upload", path, "--name"]),
+    ).rejects.toBeInstanceOf(AxiError);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("requires a path and rejects an unreadable file", async () => {
     setClient({});
     await expect(fileCommand(["upload"])).rejects.toBeInstanceOf(AxiError);
