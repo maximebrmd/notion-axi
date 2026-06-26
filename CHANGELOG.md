@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.1.1...notion-axi-v0.2.0) (2026-06-26)
+
+
+### Features
+
+* **commands:** add property setting, page archive, comments, and whoami ([#8](https://github.com/maximebrmd/notion-axi/issues/8)) ([23008d2](https://github.com/maximebrmd/notion-axi/commit/23008d2c25cbeb3413895b093c44b28084948fa3))
+
 ## [0.1.1](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.1.0...notion-axi-v0.1.1) (2026-06-26)
 
 
