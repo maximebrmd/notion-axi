@@ -36,7 +36,8 @@ describe("command dispatch", () => {
     expect(await run(["whoami"])).toContain("AUTH_REQUIRED");
   });
 
-  it("routes setup to its handler (validation error, no filesystem writes)", async () => {
+  it("routes setup and file to their handlers (validation errors, no side effects)", async () => {
     expect(await run(["setup"])).toContain("Unknown setup command");
+    expect(await run(["file"])).toContain("Missing file subcommand");
   });
 });
