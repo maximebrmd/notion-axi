@@ -27,10 +27,10 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 1. Run `npx -y notion-axi` with no arguments for a content-first view of recently edited pages and databases.
 2. `search <query>` to find an item, then note its `id`.
 3. `page view <id>` reads properties and the markdown body (previewed to ~1500 chars; add `--full` for everything).
-4. `db view <id>` shows a database's schema; `db query <id>` lists rows (title + 3 columns; `--full` for all, `--limit <n>` for more).
+4. `db view <id>` shows a database's schema; `db query <id>` lists rows (title + 3 columns; `--full` for all, `--limit <n>` for more). `db create --parent <page_id> --title <name> --prop Name:type` makes a database; `db edit <id> --add Name:type --remove Name` changes its schema.
 5. `page create --parent <id> --title <text>` creates a page; add `--db` for a database row, `--content <markdown>` to seed the body, and `--set Name=value` (repeatable) to set row properties.
 6. `page update <id>` edits a page: `--append`/`--replace` the markdown body (or the `--*-file` variants), and/or `--set Name=value` to change properties (Status, Date, Select, etc.).
-7. `page archive <id>` trashes a page (`--restore` to undo); `comments list/add <id>`; `whoami` shows the token's identity.
+7. `page archive <id>` trashes a page (`--restore` to undo); `page move <id> --to <parent>` reparents it; `comments list/add <id>`; `whoami` shows the token's identity.
 8. `api <method> <path> [--body <json>]` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
 9. Every response ends with contextual next-step hints under `help:` — follow them.
 
@@ -39,8 +39,8 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 ```
 commands[9]:
   (none)=home, search, page, db, users, comments, whoami, api, setup
-  page subcommands: view, create, update, archive
-  db subcommands: view, query
+  page subcommands: view, create, update, archive, move
+  db subcommands: view, query, create, edit
   comments subcommands: list, add
 ```
 

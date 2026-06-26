@@ -131,3 +131,30 @@ export function buildPropertyValue(type: string, raw: string): Obj {
       throw usage(`Property type "${type}" can't be set with --set`);
   }
 }
+
+/** Build a Notion property *schema* config (`{ [type]: {} }`) for `db create`
+ * / `db schema --add Name:type`. Computed/read-only types are rejected. */
+export function buildPropertySchema(type: string): Obj {
+  const settable = new Set([
+    "title",
+    "rich_text",
+    "number",
+    "select",
+    "multi_select",
+    "status",
+    "date",
+    "people",
+    "files",
+    "checkbox",
+    "url",
+    "email",
+    "phone_number",
+  ]);
+  if (!settable.has(type)) {
+    throw usage(
+      `Property type "${type}" can't be created with a simple schema`,
+      "Use one of: title, rich_text, number, select, multi_select, status, date, people, files, checkbox, url, email, phone_number",
+    );
+  }
+  return { [type]: {} };
+}

@@ -93,6 +93,9 @@ notion-axi page create --parent <id> --title "Ship v2" --db   # new row in a dat
 notion-axi page update <id> --append "## Follow-ups"
 notion-axi page update <id> --set Status=Done --set "Due=2026-07-01"  # set row properties
 notion-axi page archive <id>                  # trash a page (--restore to undo)
+notion-axi page move <id> --to <parent_id>    # reparent a page
+notion-axi db create --parent <page_id> --title Tasks --prop Status:status --prop Due:date
+notion-axi db edit <id> --add Priority:select --remove OldField
 notion-axi comments add <id> "Looks good — shipping"
 notion-axi whoami                             # token identity (integration vs PAT)
 notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape hatch
@@ -103,16 +106,16 @@ Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `
 
 ### Commands
 
-| Command    | Description                                                               |
-| ---------- | ------------------------------------------------------------------------- |
-| `search`   | Search pages & databases (`--fields url` to widen)                        |
-| `page`     | Pages — `view`, `create`, `update` (body + `--set` properties), `archive` |
-| `db`       | Databases — `view` (schema), `query` (rows; `--fields`/`--full`)          |
-| `users`    | List workspace users (internal integration only)                          |
-| `comments` | `list` / `add` page comments                                              |
-| `whoami`   | Show the token's identity (integration vs PAT) and workspace              |
-| `api`      | Call any Notion REST endpoint directly (escape hatch)                     |
-| `setup`    | Install optional agent session hooks                                      |
+| Command    | Description                                                            |
+| ---------- | ---------------------------------------------------------------------- |
+| `search`   | Search pages & databases (`--fields url` to widen)                     |
+| `page`     | Pages — `view`, `create`, `update` (body + `--set`), `archive`, `move` |
+| `db`       | Databases — `view`, `query`, `create`, `edit` (schema)                 |
+| `users`    | List workspace users (internal integration only)                       |
+| `comments` | `list` / `add` page comments                                           |
+| `whoami`   | Show the token's identity (integration vs PAT) and workspace           |
+| `api`      | Call any Notion REST endpoint directly (escape hatch)                  |
+| `setup`    | Install optional agent session hooks                                   |
 
 ### Global flags
 

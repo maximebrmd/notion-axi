@@ -1,7 +1,8 @@
 import { isNotionClientError } from "@notionhq/client";
-import { intFlag, listFlag, parseArgs, strFlag } from "../args.js";
+import { collectFlag, intFlag, listFlag, parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
 import {
+  buildPropertySchema,
   objectTitle,
   propertyValue,
   richTextToPlain,
@@ -9,7 +10,7 @@ import {
 } from "../format.js";
 import { call, getClient } from "../notion.js";
 
-export const DB_HELP = `usage: notion-axi db <view|query> <id> [flags]
+export const DB_HELP = `usage: notion-axi db <view|query|create|edit> <id> [flags]
 
 subcommands:
   view <id> [--source <data_source_id>]
@@ -18,13 +19,22 @@ subcommands:
   query <id> [--limit <n>] [--full] [--fields <list>] [--source <data_source_id>]
       List rows as a table. Shows the title + first 3 columns by default;
       --full includes every column, or --fields <a,b> picks specific ones.
-      <id> may be a database or data-source id.
+
+  create --parent <page_id> --title <name> [--prop Name:type ...]
+      Create a database under a page. --prop is repeatable (e.g. --prop
+      Status:status --prop Due:date); a title property is added if none given.
+
+  edit <id> [--add Name:type ...] [--remove Name ...] [--source <id>]
+      Add or remove data-source properties. Both flags are repeatable.
+
+Property types: title, rich_text, number, select, multi_select, status, date,
+people, files, checkbox, url, email, phone_number.
 
 examples:
   notion-axi db view 1f0a...
-  notion-axi db query 1f0a... --limit 50
-  notion-axi db query 1f0a... --full
   notion-axi db query 1f0a... --fields Stage,Company
+  notion-axi db create --parent 24f1... --title Tasks --prop Status:status --prop Due:date
+  notion-axi db edit 1f0a... --add Priority:select --remove OldField
 `;
 
 export async function dbCommand(args: string[]) {
@@ -37,13 +47,28 @@ export async function dbCommand(args: string[]) {
     case "query":
     case "rows":
       return dbQuery(rest);
+    case "create":
+      return dbCreate(rest);
+    case "edit":
+      return dbEdit(rest);
     default:
       throw usage(
         sub ? `Unknown db subcommand "${sub}"` : "Missing db subcommand",
         "Run `notion-axi db view <id>` to see the schema",
         "Run `notion-axi db query <id>` to list rows",
+        "Run `notion-axi db create --parent <page_id> --title <name>`",
+        "Run `notion-axi db edit <id> --add Name:type`",
       );
   }
+}
+
+/** Parse `Name:type` entries into [name, type] pairs. */
+function parseProps(entries: string[]): Array<[string, string]> {
+  return entries.map((e) => {
+    const i = e.indexOf(":");
+    if (i < 0) throw usage(`--prop must be Name:type (got "${e}")`);
+    return [e.slice(0, i).trim(), e.slice(i + 1).trim()];
+  });
 }
 
 interface Resolved {
@@ -184,5 +209,91 @@ async function dbQuery(args: string[]) {
         ? "Raise the cap with `--limit <n>` for more"
         : undefined,
     ].filter(Boolean),
+  };
+}
+
+async function dbCreate(args: string[]) {
+  const { flags } = parseArgs(args);
+  const parent = strFlag(flags.parent);
+  const title = strFlag(flags.title);
+  if (!parent) {
+    throw usage(
+      "Missing --parent",
+      "Run `notion-axi db create --parent <page_id> --title <name>`",
+    );
+  }
+  if (!title) {
+    throw usage(
+      "Missing --title",
+      "Run `notion-axi db create --parent <page_id> --title <name>`",
+    );
+  }
+
+  const properties: Obj = {};
+  let hasTitle = false;
+  for (const [name, type] of parseProps(collectFlag(args, "prop"))) {
+    properties[name] = buildPropertySchema(type);
+    if (type === "title") hasTitle = true;
+  }
+  if (!hasTitle) properties.Name = { title: {} };
+
+  const notion = getClient();
+  const db: Obj = await call(() =>
+    notion.databases.create({
+      parent: { type: "page_id", page_id: parent },
+      title: [{ text: { content: title } }],
+      initial_data_source: { properties },
+    } as any),
+  );
+  const dsId = db.data_sources?.[0]?.id;
+  return {
+    created: db.id,
+    data_source: dsId,
+    title,
+    url: db.url,
+    help: [
+      `Run \`notion-axi db view ${db.id}\` to see the schema`,
+      `Run \`notion-axi page create --parent ${dsId} --title <text> --db\` to add a row`,
+    ],
+  };
+}
+
+async function dbEdit(args: string[]) {
+  const { positionals, flags } = parseArgs(args);
+  const id = positionals[0];
+  if (!id) {
+    throw usage(
+      "Missing database id",
+      "Run `notion-axi db edit <id> --add Name:type`",
+    );
+  }
+  const source = strFlag(flags.source);
+  const adds = parseProps(collectFlag(args, "add"));
+  const removes = collectFlag(args, "remove");
+  if (adds.length === 0 && removes.length === 0) {
+    throw usage(
+      "Nothing to change",
+      "Run `notion-axi db edit <id> --add Name:type` to add a property",
+      "Run `notion-axi db edit <id> --remove Name` to remove one",
+    );
+  }
+
+  const notion = getClient();
+  const r = await resolve(id, source);
+  const properties: Obj = {};
+  for (const [name, type] of adds) properties[name] = buildPropertySchema(type);
+  for (const name of removes) properties[name] = null;
+
+  await call(() =>
+    notion.dataSources.update({
+      data_source_id: r.dsId,
+      properties,
+    } as any),
+  );
+  return {
+    updated: r.dsId,
+    added: adds.map(([n]) => n),
+    removed: removes,
+    help: [`Run \`notion-axi db view ${id}\` to confirm`],
   };
 }
