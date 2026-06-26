@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { main } from "../src/cli.js";
+import { ntnApi } from "../src/ntn.js";
+import { AxiError } from "../src/errors.js";
+
+const api = vi.mocked(ntnApi);
 
 function capture() {
   let out = "";
@@ -10,19 +17,11 @@ function capture() {
 }
 
 describe("main", () => {
-  let token: string | undefined;
-  let apiKey: string | undefined;
-
   beforeEach(() => {
-    token = process.env.NOTION_TOKEN;
-    apiKey = process.env.NOTION_API_KEY;
-    delete process.env.NOTION_TOKEN;
-    delete process.env.NOTION_API_KEY;
     process.exitCode = undefined;
+    api.mockReset();
   });
   afterEach(() => {
-    if (token !== undefined) process.env.NOTION_TOKEN = token;
-    if (apiKey !== undefined) process.env.NOTION_API_KEY = apiKey;
     process.exitCode = undefined;
   });
 
@@ -32,15 +31,17 @@ describe("main", () => {
     expect(c.read().trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("shows a content-first setup home view when NOTION_TOKEN is missing", async () => {
+  it("shows a content-first setup home view when not logged in", async () => {
+    api.mockRejectedValue(new AxiError("nope", "AUTH_REQUIRED"));
     const c = capture();
     await main({ argv: [], stdout: c.stdout });
     const out = c.read();
     expect(out).toContain("bin:");
-    expect(out).toContain("NOTION_TOKEN is not set");
+    expect(out).toContain("not logged in to Notion");
   });
 
-  it("returns a structured auth error for data commands without a token", async () => {
+  it("returns a structured auth error for data commands when not logged in", async () => {
+    api.mockRejectedValue(new AxiError("nope", "AUTH_REQUIRED"));
     const c = capture();
     await main({ argv: ["search", "roadmap"], stdout: c.stdout });
     const out = c.read();

@@ -1,6 +1,6 @@
 import { parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 import type { Obj } from "../format.js";
 
 export const API_HELP = `usage: notion-axi api <path> [flags]
@@ -53,16 +53,22 @@ export async function apiCommand(args: string[]) {
   const body = parseJson(strFlag(flags.body), "--body");
   const query = parseJson(strFlag(flags.query), "--query");
 
-  const notion = getClient();
-  const result: Obj = await call(() =>
-    notion.request({
-      path: path.replace(/^\//, ""),
-      method: method as "get" | "post" | "patch" | "delete",
-      body,
-      query,
-    }),
-  );
+  const result: Obj = await ntnApi(path, {
+    method,
+    ...(body !== undefined ? { body } : {}),
+    ...(query !== undefined ? { query: scalarize(query) } : {}),
+  });
   return { result };
+}
+
+/** Coerce a query JSON object into the scalar map `ntn`'s inline syntax wants. */
+function scalarize(query: Obj): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(query)) {
+    out[k] =
+      typeof v === "object" && v !== null ? JSON.stringify(v) : (v as never);
+  }
+  return out;
 }
 
 function parseJson(raw: string | undefined, flag: string): Obj | undefined {

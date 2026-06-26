@@ -1,7 +1,7 @@
 import { intFlag, parseArgs } from "../args.js";
 import { usage } from "../errors.js";
 import { richTextToPlain, shortDate, type Obj } from "../format.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 
 export const COMMENTS_HELP = `usage: notion-axi comments <list|add|delete> <id> ...
 
@@ -47,8 +47,7 @@ async function commentsDelete(args: string[]) {
       "Run `notion-axi comments delete <comment_id>`",
     );
   }
-  const notion = getClient();
-  await call(() => notion.comments.delete({ comment_id: id }));
+  await ntnApi(`v1/comments/${id}`, { method: "DELETE" });
   return { deleted: id, result: "comment deleted" };
 }
 
@@ -58,10 +57,9 @@ async function commentsList(args: string[]) {
   if (!id) throw usage("Missing id", "Run `notion-axi comments list <id>`");
   const limit = intFlag(flags.limit, 50);
 
-  const notion = getClient();
-  const res: Obj = await call(() =>
-    notion.comments.list({ block_id: id, page_size: Math.min(limit, 100) }),
-  );
+  const res: Obj = await ntnApi("v1/comments", {
+    query: { block_id: id, page_size: Math.min(limit, 100) },
+  });
   const comments = (res.results ?? []).slice(0, limit).map((c: Obj) => ({
     id: c.id,
     author: c.created_by?.name ?? c.created_by?.id ?? "",
@@ -98,13 +96,13 @@ async function commentsAdd(args: string[]) {
     );
   }
 
-  const notion = getClient();
-  const comment: Obj = await call(() =>
-    notion.comments.create({
+  const comment: Obj = await ntnApi("v1/comments", {
+    method: "POST",
+    body: {
       parent: { page_id: id },
       rich_text: [{ text: { content: text } }],
-    } as any),
-  );
+    },
+  });
 
   return {
     added: comment.id,

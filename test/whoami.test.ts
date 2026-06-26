@@ -1,25 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { whoamiCommand } from "../src/commands/whoami.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn() };
-});
-
+const api = vi.mocked(ntnApi);
 function setMe(me: unknown) {
-  vi.mocked(notion.getClient).mockReturnValue({
-    users: { me: vi.fn().mockResolvedValue(me) },
-  } as never);
+  api.mockResolvedValue(me as never);
 }
-
 afterEach(() => vi.clearAllMocks());
 
 describe("whoamiCommand", () => {
-  it("reports a bot (integration) identity", async () => {
+  it("reports a bot (workspace) identity", async () => {
     setMe({
       id: "b1",
-      name: "notion-axi",
+      name: "Notion CLI",
       type: "bot",
       bot: { workspace_name: "WS" },
     });

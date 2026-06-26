@@ -16,7 +16,12 @@ Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for N
 You do not need notion-axi installed globally — invoke it with `npx -y notion-axi <command>`.
 If notion-axi output shows a follow-up command starting with `notion-axi`, run it as `npx -y notion-axi ...` instead.
 
-notion-axi reads `NOTION_TOKEN` (or `NOTION_API_KEY`) from the environment. If a command fails with an authentication error, ask the user to set one up. The quickest is a **personal access token** (https://www.notion.so/developers/tokens → New personal access token, capabilities Notion API) — it acts as the user, so it can already reach everything they can with no page-sharing step. The alternative is an internal integration (https://www.notion.so/my-integrations), which only sees pages explicitly shared with it (••• → Connections). One exception: `users` cannot run under a PAT — that command needs an internal integration token.
+notion-axi wraps the official **Notion CLI (`ntn`)**, which handles authentication for you. `ntn` must be installed and logged in:
+
+- Install: `curl -fsSL https://ntn.dev | bash`
+- Log in: `ntn login` (opens a browser; the workspace token is stored in the OS keychain — no page-sharing step, it acts as the user)
+
+If a command fails with `NTN_NOT_INSTALLED`, ask the user to run the install command. If it fails with `AUTH_REQUIRED`, ask them to run `ntn login` (or export `NOTION_API_TOKEN`). One restriction: `users` requires elevated workspace permissions and is often blocked — handle a `RESTRICTED_RESOURCE` error gracefully.
 
 ## When to use
 
@@ -31,7 +36,7 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 5. `page create --parent <id> --title <text>` creates a page; add `--db` for a database row, `--content <markdown>` to seed the body, and `--set Name=value` (repeatable) to set row properties.
 6. `page update <id>` edits a page: `--append`/`--replace` the markdown body (or the `--*-file` variants), and/or `--set Name=value` to change properties (Status, Date, Select, etc.).
 7. `page archive <id>` trashes a page (`--restore` to undo); `page move <id> --to <parent>` reparents it. `block list <page_id>` / `block delete <id>` work at the block level; `comments list/add/delete <id>`; `users get <id>`; `whoami` shows the token's identity.
-8. `file upload <path> [--attach <page_id>]` uploads a local file (the one thing `api` can't do — uploads are multipart) and optionally attaches it to a page.
+8. `file upload <path> [--attach <page_id>]` uploads a local file (single-part, via a multipart send) and optionally attaches it to a page.
 9. `api <method> <path> [--body <json>]` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
 10. Every response ends with contextual next-step hints under `help:` — follow them.
 
@@ -53,11 +58,11 @@ Run `npx -y notion-axi --help` for global flags, or `npx -y notion-axi <command>
 ## Tips
 
 - Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
-- An integration only sees content explicitly shared with it — with an integration token, a "not found" error usually means the page/database has not been shared (a PAT is not subject to this).
+- A `ntn login` workspace token acts as the user, so it can reach everything the user can — an `OBJECT_NOT_FOUND` usually means a wrong id, not a sharing gap.
 - For `db` commands, `<id>` may be a database or a data-source id; a database resolves to its first data source automatically (use `--source <id>` to target a specific one).
 - Lists are minimal by default — add `--fields url` (search) or `--fields a,b` (db query) to widen, or `--full` for all database columns.
 - Page bodies are markdown via the Notion API, so `--append`/`--replace` and `--content` all take markdown (or read it from a file with the `--*-file` flags).
 - `--set Name=value` is repeatable and typed by the schema: dates as `start..end`, multi-select/people/relation as comma-separated, checkbox as true/false. `page archive` is idempotent (archiving an archived page is a no-op).
-- `whoami` reveals whether the token is an integration (bot) or a PAT; `users` only works with an integration token, not a PAT.
+- `whoami` reveals the identity behind the current login (bot vs user) and the workspace; `users` needs elevated workspace permissions and is often `RESTRICTED_RESOURCE`.
 - Anything without a dedicated command (views, meeting notes, templates, paginated property items) is reachable through `api` — the entire Notion REST API is available.
 - Exit codes: 0 success, 1 error, 2 usage. Errors are structured with an `error`, `code`, and `help` list.

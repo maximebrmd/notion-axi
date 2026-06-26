@@ -1,24 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { main } from "../src/cli.js";
+import { ntnApi } from "../src/ntn.js";
+import { AxiError } from "../src/errors.js";
 
-// Exercises each command arrow in src/cli.ts's COMMANDS map. Without a token the
-// data commands surface AUTH_REQUIRED; `setup` (no subcommand) fails validation
-// before touching the filesystem — both prove the arrow was dispatched.
+// Exercises each command arrow in src/cli.ts's COMMANDS map. With ntn rejecting,
+// the data commands surface AUTH_REQUIRED; `setup` (no subcommand) fails
+// validation before touching the filesystem — both prove the arrow was dispatched.
 describe("command dispatch", () => {
-  let token: string | undefined;
-  let apiKey: string | undefined;
-
   beforeEach(() => {
-    token = process.env.NOTION_TOKEN;
-    apiKey = process.env.NOTION_API_KEY;
-    delete process.env.NOTION_TOKEN;
-    delete process.env.NOTION_API_KEY;
     process.exitCode = undefined;
+    vi.mocked(ntnApi).mockRejectedValue(new AxiError("nope", "AUTH_REQUIRED"));
   });
   afterEach(() => {
-    if (token !== undefined) process.env.NOTION_TOKEN = token;
-    if (apiKey !== undefined) process.env.NOTION_API_KEY = apiKey;
     process.exitCode = undefined;
+    vi.clearAllMocks();
   });
 
   async function run(argv: string[]) {

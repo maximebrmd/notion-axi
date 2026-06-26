@@ -10,24 +10,26 @@
 
 Notion CLI for agents — designed with [AXI](https://github.com/kunchenguid/axi) (Agent eXperience Interface).
 
-Wraps the official [`@notionhq/client`](https://www.npmjs.com/package/@notionhq/client) with token-efficient [TOON](https://toonformat.dev/) output, contextual next-step suggestions, and structured error handling. Built for autonomous agents that interact with Notion via shell execution.
+Wraps the official [Notion CLI (`ntn`)](https://developers.notion.com/cli) with token-efficient [TOON](https://toonformat.dev/) output, contextual next-step suggestions, and structured error handling. `ntn` handles authentication and the API; notion-axi makes its output ergonomic for autonomous agents driving Notion via shell execution.
 
 ## Quick Start
 
-Install the notion-axi skill in the [Agent Skills](https://agentskills.io) format with [`npx skills`](https://github.com/vercel-labs/skills):
+**1. Install and log in to the Notion CLI** (Node 20+ also required):
+
+```sh
+curl -fsSL https://ntn.dev | bash   # installs `ntn`
+ntn login                           # opens a browser; token is stored in your OS keychain
+```
+
+`ntn login` acts as you — it can already see everything you can, with no page-sharing step.
+
+**2. Install the notion-axi skill** in the [Agent Skills](https://agentskills.io) format with [`npx skills`](https://github.com/vercel-labs/skills):
 
 ```sh
 npx skills add maximebrmd/notion-axi --skill notion-axi -g
 ```
 
-That is the entire setup — no global install needed. The skill teaches your agent to run notion-axi through `npx -y notion-axi`, so the CLI comes along on demand.
-
-You still need a Notion token (Node 20+ required). The quickest is a **Personal Access Token** — no page-sharing required:
-
-1. Create one at <https://www.notion.so/developers/tokens> → **New personal access token** → capabilities **Notion API**.
-2. Export it: `export NOTION_TOKEN=ntn_xxxxxxxx`.
-
-That's it — a PAT acts as you, so it can already see everything you can. See [Authentication](#authentication) for the alternative (an internal integration) and the trade-offs.
+That is the entire notion-axi setup — no global install needed. The skill teaches your agent to run notion-axi through `npx -y notion-axi`, which shells out to `ntn` under the hood.
 
 `-g` installs the skill for all projects (`~/.claude/skills/`); drop it to install for the current project only (`.claude/skills/`).
 
@@ -37,10 +39,10 @@ The skill is the recommended path, but it is not the only one.
 
 ### Zero setup
 
-notion-axi is an AXI, so any capable agent can run the CLI directly with nothing installed at all. Just tell your agent:
+notion-axi is an AXI, so any capable agent can run the CLI directly with nothing installed via npm. Once `ntn` is installed and logged in (see above), just tell your agent:
 
 ```
-Execute `npx -y notion-axi` to get Notion tools (set NOTION_TOKEN first).
+Execute `npx -y notion-axi` to get Notion tools.
 ```
 
 ### Session hook
@@ -56,26 +58,26 @@ This installs a `SessionStart` hook for **Claude Code**, **Codex**, and **OpenCo
 
 ## Authentication
 
-notion-axi reads a Notion token from `NOTION_TOKEN` (or `NOTION_API_KEY`). Each user supplies their **own** token — notion-axi never ships one, so it only ever touches _your_ workspace. Two kinds of token work, used identically:
+notion-axi delegates authentication entirely to the official **Notion CLI (`ntn`)** — it never handles a token itself, so it only ever touches _your_ workspace.
 
-### Personal Access Token — recommended
+### `ntn login` — recommended
 
-A [PAT](https://developers.notion.com/guides/get-started/personal-access-tokens) is a user-scoped token that **acts as you**: it can already access everything you can in Notion, with **no page-sharing step**. Ideal for a personal CLI / agent.
+```sh
+curl -fsSL https://ntn.dev | bash
+ntn login
+```
 
-1. <https://www.notion.so/developers/tokens> → **New personal access token** → name it, pick the workspace, capabilities **Notion API**.
-2. `export NOTION_TOKEN=ntn_…` (in your shell profile, or a local `.env`).
+`ntn login` opens a browser, authorizes a workspace, and stores the credential in your **OS keychain**. It **acts as you**, so it can already reach everything you can with **no page-sharing step** — and there is no token to copy, paste, or rotate. This is the same browser-OAuth model the Notion MCP uses, but with zero hosted infrastructure.
 
-> A PAT expires after a year and inherits all of your permissions — store it like a password and never commit it. Note: Notion blocks PATs from listing workspace users, so `notion-axi users` needs an internal integration instead.
+### `NOTION_API_TOKEN` — for CI / headless
 
-### Internal integration
+For non-interactive environments where a browser login isn't possible, `ntn` (and therefore notion-axi) honors a token from the `NOTION_API_TOKEN` environment variable, which takes precedence over the keychain:
 
-An [internal integration](https://www.notion.so/my-integrations) is a workspace-scoped bot with a static secret. It only sees pages **explicitly shared** with it (via a page's `•••` → **Connections**), which is useful when you want to scope access narrowly.
+```sh
+export NOTION_API_TOKEN=ntn_…   # a personal access token or internal integration secret
+```
 
-1. <https://www.notion.so/my-integrations> → **New integration** (internal) → copy the secret.
-2. `export NOTION_TOKEN=ntn_…`
-3. Share each page/database with the integration.
-
-> Why not OAuth? Public/OAuth connections require a hosted backend holding a client secret (Notion's token exchange is a confidential client with no PKCE) — that's a service to run, not something a distributable `npx` CLI can do. A PAT gives the same "acts as you" result with zero infrastructure.
+> One restriction carries over from the Notion API regardless of how you authenticate: listing workspace users requires elevated permissions, so `notion-axi users` is often `RESTRICTED_RESOURCE`.
 
 ## Usage
 
@@ -97,7 +99,7 @@ notion-axi page move <id> --to <parent_id>    # reparent a page
 notion-axi db create --parent <page_id> --title Tasks --prop Stage:select --prop Due:date
 notion-axi db edit <id> --add Priority:select --remove OldField
 notion-axi comments add <id> "Looks good — shipping"
-notion-axi whoami                             # token identity (integration vs PAT)
+notion-axi whoami                             # login identity (bot/user) and workspace
 notion-axi file upload ./diagram.png --attach <page_id>   # upload + attach a file
 notion-axi block list <page_id>               # a page's child blocks (ids + text)
 notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape hatch
@@ -114,9 +116,9 @@ Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `
 | `page`     | Pages — `view`, `create`, `update` (body + `--set`), `archive`, `move` |
 | `db`       | Databases — `view`, `query`, `create`, `edit` (schema)                 |
 | `block`    | Blocks — `list` a page's child blocks, `delete` one                    |
-| `users`    | List workspace users or `get` one by id (internal integration only)    |
+| `users`    | List workspace users or `get` one by id (needs elevated permissions)   |
 | `comments` | `list` / `add` / `delete` page comments                                |
-| `whoami`   | Show the token's identity (integration vs PAT) and workspace           |
+| `whoami`   | Show the login identity (bot vs user) and workspace                    |
 | `api`      | Call any Notion REST endpoint directly (escape hatch)                  |
 | `setup`    | Install optional agent session hooks                                   |
 

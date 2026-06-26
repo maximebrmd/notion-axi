@@ -45,7 +45,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@notionhq/client": "^5.22.0",
     "axi-sdk-js": "^0.1.7"
   },
   "devDependencies": {

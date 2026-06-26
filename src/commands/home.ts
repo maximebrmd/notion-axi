@@ -1,27 +1,41 @@
+import { AxiError } from "../errors.js";
 import { objectTitle, shortDate, type Obj } from "../format.js";
-import { call, getClient, hasToken } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 
 /** Content-first home view: recently edited pages & databases. */
 export async function homeCommand() {
-  if (!hasToken()) {
-    return {
-      status: "NOTION_TOKEN is not set",
-      setup: [
-        "1. Create an internal integration: https://www.notion.so/my-integrations",
-        "2. export NOTION_TOKEN=ntn_...",
-        "3. Share pages/databases with the integration (••• → Connections)",
-      ],
-      help: ["Run `notion-axi --help` to see all commands"],
-    };
+  let res: Obj;
+  try {
+    res = await ntnApi("v1/search", {
+      method: "POST",
+      body: {
+        page_size: 10,
+        sort: { timestamp: "last_edited_time", direction: "descending" },
+      },
+    });
+  } catch (e) {
+    if (e instanceof AxiError && e.code === "NTN_NOT_INSTALLED") {
+      return {
+        status: "the Notion CLI (ntn) is not installed",
+        setup: [
+          "1. Install it: curl -fsSL https://ntn.dev | bash",
+          "2. Connect your workspace: ntn login",
+        ],
+        help: ["Run `notion-axi --help` to see all commands"],
+      };
+    }
+    if (e instanceof AxiError && e.code === "AUTH_REQUIRED") {
+      return {
+        status: "not logged in to Notion",
+        setup: [
+          "1. Run: ntn login (opens a browser; token is stored in your OS keychain)",
+          "2. Or export NOTION_API_TOKEN with a Notion token",
+        ],
+        help: ["Run `notion-axi --help` to see all commands"],
+      };
+    }
+    throw e;
   }
-
-  const notion = getClient();
-  const res: Obj = await call(() =>
-    notion.search({
-      page_size: 10,
-      sort: { timestamp: "last_edited_time", direction: "descending" },
-    }),
-  );
 
   const recent = (res.results ?? []).map((r: Obj) => ({
     id: r.id,
@@ -33,11 +47,8 @@ export async function homeCommand() {
   if (recent.length === 0) {
     return {
       recent: [],
-      result: "Nothing shared with this integration yet",
-      help: [
-        "Share a page/database in Notion → ••• → Connections → add your integration",
-        "Then run `notion-axi search <query>`",
-      ],
+      result: "Nothing in this workspace yet",
+      help: ["Create a page in Notion, then run `notion-axi search <query>`"],
     };
   }
 

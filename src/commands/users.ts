@@ -1,12 +1,12 @@
 import { intFlag, parseArgs } from "../args.js";
 import { usage } from "../errors.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 import type { Obj } from "../format.js";
 
 export const USERS_HELP = `usage: notion-axi users [--limit <n>]
        notion-axi users get <user_id>
 
-List users visible to the integration, or get one by id (id, name, type, email).
+List users in the workspace, or get one by id (id, name, type, email).
 
 examples:
   notion-axi users
@@ -32,14 +32,13 @@ async function usersList(args: string[]) {
   const { flags } = parseArgs(args);
   const limit = intFlag(flags.limit, 50);
 
-  const notion = getClient();
-  const res: Obj = await call(() =>
-    notion.users.list({ page_size: Math.min(limit, 100) }),
-  );
+  const res: Obj = await ntnApi("v1/users", {
+    query: { page_size: Math.min(limit, 100) },
+  });
   const users = (res.results ?? []).slice(0, limit).map(shape);
 
   if (users.length === 0) {
-    return { users: [], result: "0 users visible to this integration" };
+    return { users: [], result: "0 users visible to this token" };
   }
   return { users, count: users.length, has_more: res.has_more ?? false };
 }
@@ -50,7 +49,6 @@ async function usersGet(args: string[]) {
   if (!id)
     throw usage("Missing user id", "Run `notion-axi users get <user_id>`");
 
-  const notion = getClient();
-  const user: Obj = await call(() => notion.users.retrieve({ user_id: id }));
+  const user: Obj = await ntnApi(`v1/users/${id}`);
   return { user: shape(user) };
 }

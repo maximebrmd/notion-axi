@@ -1,6 +1,5 @@
-import { isNotionClientError } from "@notionhq/client";
 import { collectFlag, intFlag, listFlag, parseArgs, strFlag } from "../args.js";
-import { usage } from "../errors.js";
+import { AxiError, usage } from "../errors.js";
 import {
   buildPropertySchema,
   objectTitle,
@@ -8,7 +7,7 @@ import {
   richTextToPlain,
   type Obj,
 } from "../format.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 
 export const DB_HELP = `usage: notion-axi db <view|query|create|edit> <id> [flags]
 
@@ -84,29 +83,32 @@ interface Resolved {
  * data source. A database may expose several data sources; default to the first.
  */
 async function resolve(id: string, source?: string): Promise<Resolved> {
-  const notion = getClient();
   if (source) return { dsId: source, sources: [] };
+  let db: Obj;
   try {
-    const db: Obj = await notion.databases.retrieve({ database_id: id });
-    const sources = (db.data_sources ?? []) as Array<{
-      id: string;
-      name: string;
-    }>;
-    if (sources.length === 0) {
-      throw usage("That database has no data sources to query");
-    }
-    return {
-      dsId: sources[0].id,
-      sources,
-      dbId: db.id,
-      dbTitle: objectTitle(db),
-      dbUrl: db.url,
-    };
+    db = await ntnApi(`v1/databases/${id}`);
   } catch (e) {
-    // Not a database id (or not shared) — assume it is already a data_source id.
-    if (isNotionClientError(e)) return { dsId: id, sources: [] };
+    // Not a database id — assume it is a data_source id. Only fall back when the
+    // object genuinely wasn't found; auth/install/other errors must surface.
+    if (e instanceof AxiError && e.code === "OBJECT_NOT_FOUND") {
+      return { dsId: id, sources: [] };
+    }
     throw e;
   }
+  const sources = (db.data_sources ?? []) as Array<{
+    id: string;
+    name: string;
+  }>;
+  if (sources.length === 0) {
+    throw usage("That database has no data sources to query");
+  }
+  return {
+    dsId: sources[0].id,
+    sources,
+    dbId: db.id,
+    dbTitle: objectTitle(db),
+    dbUrl: db.url,
+  };
 }
 
 async function dbView(args: string[]) {
@@ -115,11 +117,8 @@ async function dbView(args: string[]) {
   if (!id) throw usage("Missing database id", "Run `notion-axi db view <id>`");
   const source = strFlag(flags.source);
 
-  const notion = getClient();
   const r = await resolve(id, source);
-  const ds: Obj = await call(() =>
-    notion.dataSources.retrieve({ data_source_id: r.dsId }),
-  );
+  const ds: Obj = await ntnApi(`v1/data_sources/${r.dsId}`);
 
   const schema = Object.entries(ds.properties ?? {}).map(([name, prop]) => ({
     name,
@@ -148,11 +147,8 @@ async function dbQuery(args: string[]) {
   const limit = intFlag(flags.limit, 25);
   const full = flags.full === true;
 
-  const notion = getClient();
   const r = await resolve(id, source);
-  const ds: Obj = await call(() =>
-    notion.dataSources.retrieve({ data_source_id: r.dsId }),
-  );
+  const ds: Obj = await ntnApi(`v1/data_sources/${r.dsId}`);
 
   const names = Object.keys(ds.properties ?? {});
   const titleName = names.find((n) => ds.properties[n]?.type === "title");
@@ -172,12 +168,10 @@ async function dbQuery(args: string[]) {
       ? others
       : others.slice(0, 3);
 
-  const res: Obj = await call(() =>
-    notion.dataSources.query({
-      data_source_id: r.dsId,
-      page_size: Math.min(limit, 100),
-    }),
-  );
+  const res: Obj = await ntnApi(`v1/data_sources/${r.dsId}/query`, {
+    method: "POST",
+    body: { page_size: Math.min(limit, 100) },
+  });
   const pages = (res.results ?? []).slice(0, limit);
 
   const rows = pages.map((p: Obj) => {
@@ -237,14 +231,14 @@ async function dbCreate(args: string[]) {
   }
   if (!hasTitle) properties.Name = { title: {} };
 
-  const notion = getClient();
-  const db: Obj = await call(() =>
-    notion.databases.create({
+  const db: Obj = await ntnApi("v1/databases", {
+    method: "POST",
+    body: {
       parent: { type: "page_id", page_id: parent },
       title: [{ text: { content: title } }],
       initial_data_source: { properties },
-    } as any),
-  );
+    },
+  });
   const dsId = db.data_sources?.[0]?.id;
   return {
     created: db.id,
@@ -278,18 +272,15 @@ async function dbEdit(args: string[]) {
     );
   }
 
-  const notion = getClient();
   const r = await resolve(id, source);
   const properties: Obj = {};
   for (const [name, type] of adds) properties[name] = buildPropertySchema(type);
   for (const name of removes) properties[name] = null;
 
-  await call(() =>
-    notion.dataSources.update({
-      data_source_id: r.dsId,
-      properties,
-    } as any),
-  );
+  await ntnApi(`v1/data_sources/${r.dsId}`, {
+    method: "PATCH",
+    body: { properties },
+  });
   return {
     updated: r.dsId,
     added: adds.map(([n]) => n),
