@@ -113,8 +113,9 @@ Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `
 | `search`   | Search pages & databases (`--fields url` to widen)                     |
 | `page`     | Pages — `view`, `create`, `update` (body + `--set`), `archive`, `move` |
 | `db`       | Databases — `view`, `query`, `create`, `edit` (schema)                 |
-| `users`    | List workspace users (internal integration only)                       |
-| `comments` | `list` / `add` page comments                                           |
+| `block`    | Blocks — `list` a page's child blocks, `delete` one                    |
+| `users`    | List workspace users or `get` one by id (internal integration only)    |
+| `comments` | `list` / `add` / `delete` page comments                                |
 | `whoami`   | Show the token's identity (integration vs PAT) and workspace           |
 | `api`      | Call any Notion REST endpoint directly (escape hatch)                  |
 | `setup`    | Install optional agent session hooks                                   |
