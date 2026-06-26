@@ -31,17 +31,19 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 5. `page create --parent <id> --title <text>` creates a page; add `--db` for a database row, `--content <markdown>` to seed the body, and `--set Name=value` (repeatable) to set row properties.
 6. `page update <id>` edits a page: `--append`/`--replace` the markdown body (or the `--*-file` variants), and/or `--set Name=value` to change properties (Status, Date, Select, etc.).
 7. `page archive <id>` trashes a page (`--restore` to undo); `page move <id> --to <parent>` reparents it; `comments list/add <id>`; `whoami` shows the token's identity.
-8. `api <method> <path> [--body <json>]` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
-9. Every response ends with contextual next-step hints under `help:` — follow them.
+8. `file upload <path> [--attach <page_id>]` uploads a local file (the one thing `api` can't do — uploads are multipart) and optionally attaches it to a page.
+9. `api <method> <path> [--body <json>]` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
+10. Every response ends with contextual next-step hints under `help:` — follow them.
 
 ## Commands
 
 ```
-commands[9]:
-  (none)=home, search, page, db, users, comments, whoami, api, setup
+commands[10]:
+  (none)=home, search, page, db, users, comments, whoami, file, api, setup
   page subcommands: view, create, update, archive, move
   db subcommands: view, query, create, edit
   comments subcommands: list, add
+  file subcommands: upload
 ```
 
 Run `npx -y notion-axi --help` for global flags, or `npx -y notion-axi <command> --help` for per-command usage.

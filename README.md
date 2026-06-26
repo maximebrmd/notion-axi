@@ -98,6 +98,7 @@ notion-axi db create --parent <page_id> --title Tasks --prop Stage:select --prop
 notion-axi db edit <id> --add Priority:select --remove OldField
 notion-axi comments add <id> "Looks good — shipping"
 notion-axi whoami                             # token identity (integration vs PAT)
+notion-axi file upload ./diagram.png --attach <page_id>   # upload + attach a file
 notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape hatch
 notion-axi setup hooks                        # install optional agent session hooks
 ```
