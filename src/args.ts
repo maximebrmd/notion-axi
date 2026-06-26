@@ -54,7 +54,11 @@ export function collectFlag(args: string[], name: string): string[] {
   const eq = `${flag}=`;
   const out: string[] = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === flag && i + 1 < args.length) {
+    if (
+      args[i] === flag &&
+      i + 1 < args.length &&
+      !args[i + 1].startsWith("--")
+    ) {
       out.push(args[++i]);
     } else if (args[i].startsWith(eq)) {
       out.push(args[i].slice(eq.length));

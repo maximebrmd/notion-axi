@@ -56,6 +56,18 @@ describe("comments list", () => {
     expect(out.comments[2].author).toBe(""); // no created_by → ""
   });
 
+  it("surfaces has_more and suggests raising the cap", async () => {
+    const list = vi.fn().mockResolvedValue({
+      results: [{ id: "c1", created_time: "2026-06-20T0:0:0Z", rich_text: [] }],
+      has_more: true,
+    });
+    setClient({ comments: { list } });
+    const out: any = await commentsCommand(["list", "p1", "--limit", "1"]);
+    expect(list.mock.calls[0][0].page_size).toBe(1);
+    expect(out.has_more).toBe(true);
+    expect(out.help).toContain("Raise the cap with `--limit <n>` for more");
+  });
+
   it("gives a definitive empty state", async () => {
     setClient({ comments: { list: vi.fn().mockResolvedValue({}) } });
     expect((await commentsCommand(["list", "p1"])).result).toContain(

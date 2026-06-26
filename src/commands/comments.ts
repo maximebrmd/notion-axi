@@ -1,4 +1,4 @@
-import { parseArgs } from "../args.js";
+import { intFlag, parseArgs } from "../args.js";
 import { usage } from "../errors.js";
 import { richTextToPlain, shortDate, type Obj } from "../format.js";
 import { call, getClient } from "../notion.js";
@@ -6,11 +6,12 @@ import { call, getClient } from "../notion.js";
 export const COMMENTS_HELP = `usage: notion-axi comments <list|add> <id> ...
 
 subcommands:
-  list <id>          List comments on a page (or block)
-  add <id> <text>    Add a comment to a page
+  list <id> [--limit <n>]   List comments on a page (or block)
+  add <id> <text>           Add a comment to a page
 
 examples:
   notion-axi comments list 24f1...
+  notion-axi comments list 24f1... --limit 100
   notion-axi comments add 24f1... "Looks good — shipping it."
 `;
 
@@ -34,13 +35,16 @@ export async function commentsCommand(args: string[]) {
 }
 
 async function commentsList(args: string[]) {
-  const { positionals } = parseArgs(args);
+  const { positionals, flags } = parseArgs(args);
   const id = positionals[0];
   if (!id) throw usage("Missing id", "Run `notion-axi comments list <id>`");
+  const limit = intFlag(flags.limit, 50);
 
   const notion = getClient();
-  const res: Obj = await call(() => notion.comments.list({ block_id: id }));
-  const comments = (res.results ?? []).map((c: Obj) => ({
+  const res: Obj = await call(() =>
+    notion.comments.list({ block_id: id, page_size: Math.min(limit, 100) }),
+  );
+  const comments = (res.results ?? []).slice(0, limit).map((c: Obj) => ({
     id: c.id,
     author: c.created_by?.name ?? c.created_by?.id ?? "",
     created: shortDate(c.created_time),
@@ -53,7 +57,13 @@ async function commentsList(args: string[]) {
   return {
     comments,
     count: comments.length,
-    help: [`Run \`notion-axi comments add ${id} <text>\` to reply`],
+    has_more: res.has_more ?? false,
+    help: [
+      `Run \`notion-axi comments add ${id} <text>\` to reply`,
+      res.has_more && limit < 100
+        ? "Raise the cap with `--limit <n>` for more"
+        : undefined,
+    ].filter(Boolean),
   };
 }
 

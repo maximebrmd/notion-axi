@@ -1,3 +1,4 @@
+import { listFlag } from "./args.js";
 import { usage } from "./errors.js";
 
 /**
@@ -109,7 +110,7 @@ export function buildPropertyValue(type: string, raw: string): Obj {
     case "status":
       return { status: { name: raw } };
     case "multi_select":
-      return { multi_select: splitList(raw).map((name) => ({ name })) };
+      return { multi_select: listFlag(raw).map((name) => ({ name })) };
     case "date": {
       const [start, end] = raw.split("..").map((s) => s.trim());
       return { date: end ? { start, end } : { start } };
@@ -123,17 +124,10 @@ export function buildPropertyValue(type: string, raw: string): Obj {
     case "phone_number":
       return { phone_number: raw };
     case "people":
-      return { people: splitList(raw).map((id) => ({ id })) };
+      return { people: listFlag(raw).map((id) => ({ id })) };
     case "relation":
-      return { relation: splitList(raw).map((id) => ({ id })) };
+      return { relation: listFlag(raw).map((id) => ({ id })) };
     default:
       throw usage(`Property type "${type}" can't be set with --set`);
   }
-}
-
-function splitList(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
