@@ -5,8 +5,8 @@
 export const SKILL_NAME = "notion-axi";
 
 export const SKILL_DESCRIPTION =
-  "Operate Notion through the notion-axi CLI — search, read, create, and update pages and databases. " +
-  "Use whenever a task touches Notion: finding a page or database, reading page content, querying database rows, or creating and editing pages.";
+  "Operate Notion through the notion-axi CLI — search; read, create, update, archive, and move pages; create and edit databases and query/set typed row properties; manage blocks, comments, and file uploads; or call any REST endpoint directly. " +
+  "Use whenever a task touches Notion: finding pages or databases, reading or editing content, working with database rows, comments, files, or anything else in a Notion workspace.";
 
 export function createSkillMarkdown(): string {
   return `---
@@ -70,6 +70,7 @@ Run \`npx -y notion-axi --help\` for global flags, or \`npx -y notion-axi <comma
 - Page bodies are markdown via the Notion API, so \`--append\`/\`--replace\` and \`--content\` all take markdown (or read it from a file with the \`--*-file\` flags).
 - \`--set Name=value\` is repeatable and typed by the schema: dates as \`start..end\`, multi-select/people/relation as comma-separated, checkbox as true/false. \`page archive\` is idempotent (archiving an archived page is a no-op).
 - \`whoami\` reveals whether the token is an integration (bot) or a PAT; \`users\` only works with an integration token, not a PAT.
+- Anything without a dedicated command (views, meeting notes, templates, paginated property items) is reachable through \`api\` — the entire Notion REST API is available.
 - Exit codes: 0 success, 1 error, 2 usage. Errors are structured with an \`error\`, \`code\`, and \`help\` list.
 `;
 }

@@ -104,7 +104,7 @@ notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape h
 notion-axi setup hooks                        # install optional agent session hooks
 ```
 
-Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `--replace` all take markdown — or read it from a file with `--content-file` / `--append-file` / `--replace-file`. For `db` commands, `<id>` may be a database **or** a data-source id — a database resolves to its first data source automatically (use `--source <id>` to target a specific one). Use `api` for anything the dedicated commands don't cover (file uploads, complex filters).
+Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `--replace` all take markdown — or read it from a file with `--content-file` / `--append-file` / `--replace-file`. For `db` commands, `<id>` may be a database **or** a data-source id — a database resolves to its first data source automatically (use `--source <id>` to target a specific one). Use `api` for anything the dedicated commands don't cover (views, meeting notes, templates, paginated property items) — so the **entire Notion REST API** is reachable, not just the dedicated commands.
 
 ### Commands
 
