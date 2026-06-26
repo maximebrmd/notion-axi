@@ -133,6 +133,21 @@ Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `
 - Exit `0` success (including idempotent no-ops), `1` runtime/API error, `2` usage error.
 - Errors are structured: `error`, `code`, and a `help` list of fixes.
 
+## Benchmarks
+
+How much does the AXI layer actually buy an agent? Measured against the CLI it wraps (`ntn`) and the [Notion MCP server](https://github.com/makenotion/notion-mcp-server), driving an identical agent (`claude -p`, Claude Sonnet 4.6) headlessly across 5 read/multi-step Notion tasks × 3 repeats (45 runs). Input tokens include cache reads; every condition hit **100% task success**.
+
+| Condition      | Avg input tokens |   Avg cost | Turns | Duration |
+| -------------- | ---------------: | ---------: | ----: | -------: |
+| **notion-axi** |          ~63,300 | **$0.063** |   2.8 |      11s |
+| raw `ntn` CLI  |          ~83,700 |     $0.079 |   3.6 |      16s |
+| Notion MCP     |         ~177,900 |     $0.191 |   5.4 |      34s |
+
+- **~19% cheaper than driving `ntn` directly** — and **~33% cheaper at half the turns on simple reads**, where the content-first home view, TOON output, and structured `help` save the round-trips an agent otherwise spends discovering the raw CLI's syntax.
+- **~3× cheaper than the Notion MCP** overall (and **~3.6× on complex multi-step tasks**, where the MCP ballooned to ~293k tokens / $0.29 / 67s), at a third of the tokens and half the turns.
+
+Caveats: a single model and prompt style, 3 repeats, and tasks that every condition could complete — harder or edge-case endpoints would likely widen the gap further. The grading harness is workspace-specific, so it isn't committed.
+
 ## Development
 
 ```sh
