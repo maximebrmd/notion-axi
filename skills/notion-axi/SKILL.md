@@ -28,18 +28,20 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 2. `search <query>` to find an item, then note its `id`.
 3. `page view <id>` reads properties and the markdown body (previewed to ~1500 chars; add `--full` for everything).
 4. `db view <id>` shows a database's schema; `db query <id>` lists rows (title + 3 columns; `--full` for all, `--limit <n>` for more).
-5. `page create --parent <id> --title <text>` creates a page; add `--db` when `--parent` is a database id, and `--content <markdown>` to seed the body.
-6. `page update <id> --append <markdown>` (or `--replace`) edits content. For long bodies, use `--content-file`/`--append-file`/`--replace-file <path>`.
-7. `api <method> <path> [--body <json>]` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
-8. Every response ends with contextual next-step hints under `help:` — follow them.
+5. `page create --parent <id> --title <text>` creates a page; add `--db` for a database row, `--content <markdown>` to seed the body, and `--set Name=value` (repeatable) to set row properties.
+6. `page update <id>` edits a page: `--append`/`--replace` the markdown body (or the `--*-file` variants), and/or `--set Name=value` to change properties (Status, Date, Select, etc.).
+7. `page archive <id>` trashes a page (`--restore` to undo); `comments list/add <id>`; `whoami` shows the token's identity.
+8. `api <method> <path> [--body <json>]` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
+9. Every response ends with contextual next-step hints under `help:` — follow them.
 
 ## Commands
 
 ```
-commands[7]:
-  (none)=home, search, page, db, users, api, setup
-  page subcommands: view, create, update
+commands[9]:
+  (none)=home, search, page, db, users, comments, whoami, api, setup
+  page subcommands: view, create, update, archive
   db subcommands: view, query
+  comments subcommands: list, add
 ```
 
 Run `npx -y notion-axi --help` for global flags, or `npx -y notion-axi <command> --help` for per-command usage.
@@ -51,4 +53,6 @@ Run `npx -y notion-axi --help` for global flags, or `npx -y notion-axi <command>
 - For `db` commands, `<id>` may be a database or a data-source id; a database resolves to its first data source automatically (use `--source <id>` to target a specific one).
 - Lists are minimal by default — add `--fields url` (search) or `--fields a,b` (db query) to widen, or `--full` for all database columns.
 - Page bodies are markdown via the Notion API, so `--append`/`--replace` and `--content` all take markdown (or read it from a file with the `--*-file` flags).
+- `--set Name=value` is repeatable and typed by the schema: dates as `start..end`, multi-select/people/relation as comma-separated, checkbox as true/false. `page archive` is idempotent (archiving an archived page is a no-op).
+- `whoami` reveals whether the token is an integration (bot) or a PAT; `users` only works with an integration token, not a PAT.
 - Exit codes: 0 success, 1 error, 2 usage. Errors are structured with an `error`, `code`, and `help` list.

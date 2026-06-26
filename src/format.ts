@@ -1,3 +1,6 @@
+import { listFlag } from "./args.js";
+import { usage } from "./errors.js";
+
 /**
  * Loosely-typed Notion object. The Notion API's discriminated unions are
  * enormous, so command code reads the handful of fields it needs defensively.
@@ -86,5 +89,45 @@ export function propertyValue(prop: Obj): string | number | boolean | null {
       return (prop.files ?? []).length;
     default:
       return prop.type ?? null;
+  }
+}
+
+/** Build a Notion property-value payload for `--set Name=value`, given the
+ * property's schema type. Read-only / unsupported types throw a usage error. */
+export function buildPropertyValue(type: string, raw: string): Obj {
+  switch (type) {
+    case "title":
+      return { title: [{ text: { content: raw } }] };
+    case "rich_text":
+      return { rich_text: [{ text: { content: raw } }] };
+    case "number": {
+      const n = Number(raw);
+      if (Number.isNaN(n)) throw usage(`"${raw}" is not a number`);
+      return { number: n };
+    }
+    case "select":
+      return { select: { name: raw } };
+    case "status":
+      return { status: { name: raw } };
+    case "multi_select":
+      return { multi_select: listFlag(raw).map((name) => ({ name })) };
+    case "date": {
+      const [start, end] = raw.split("..").map((s) => s.trim());
+      return { date: end ? { start, end } : { start } };
+    }
+    case "checkbox":
+      return { checkbox: /^(true|yes|1|done|checked)$/i.test(raw.trim()) };
+    case "url":
+      return { url: raw };
+    case "email":
+      return { email: raw };
+    case "phone_number":
+      return { phone_number: raw };
+    case "people":
+      return { people: listFlag(raw).map((id) => ({ id })) };
+    case "relation":
+      return { relation: listFlag(raw).map((id) => ({ id })) };
+    default:
+      throw usage(`Property type "${type}" can't be set with --set`);
   }
 }

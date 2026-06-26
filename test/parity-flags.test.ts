@@ -140,7 +140,7 @@ describe("page content from a file", () => {
     expect(updateMarkdown.mock.calls[0][0].insert_content.content).toBe(
       "appended",
     );
-    expect(out.mode).toBe("append");
+    expect(out.body).toBe("appended");
     rmSync(dir, { recursive: true, force: true });
   });
 

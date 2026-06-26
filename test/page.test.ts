@@ -166,7 +166,7 @@ describe("page update", () => {
     setClient({ pages: { updateMarkdown } });
     const out: any = await pageCommand(["update", "p1", "--append", "more"]);
     expect(updateMarkdown.mock.calls[0][0].type).toBe("insert_content");
-    expect(out.mode).toBe("append");
+    expect(out.body).toBe("appended");
   });
 
   it("replaces content", async () => {
@@ -174,6 +174,133 @@ describe("page update", () => {
     setClient({ pages: { updateMarkdown } });
     const out: any = await pageCommand(["update", "p1", "--replace", "fresh"]);
     expect(updateMarkdown.mock.calls[0][0].type).toBe("replace_content");
-    expect(out.mode).toBe("replace");
+    expect(out.body).toBe("replaced");
+  });
+});
+
+describe("page update/create --set", () => {
+  const schema = { Name: { type: "title" }, Stage: { type: "status" } };
+
+  it("create --db --set merges properties from the data-source schema", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "n", url: "u" });
+    setClient({
+      dataSources: {
+        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
+      },
+      pages: { create },
+    });
+    await pageCommand([
+      "create",
+      "--parent",
+      "ds",
+      "--title",
+      "T",
+      "--db",
+      "--set",
+      "Stage=Open",
+    ]);
+    expect(create.mock.calls[0][0].properties.Stage).toEqual({
+      status: { name: "Open" },
+    });
+  });
+
+  it("rejects --set without --db on create", async () => {
+    setClient({});
+    await expect(
+      pageCommand([
+        "create",
+        "--parent",
+        "p",
+        "--title",
+        "T",
+        "--set",
+        "Stage=Open",
+      ]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("update --set retrieves types and patches properties", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    setClient({
+      pages: {
+        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
+        update,
+      },
+    });
+    const out: any = await pageCommand(["update", "p1", "--set", "Stage=Done"]);
+    expect(update.mock.calls[0][0].properties.Stage).toEqual({
+      status: { name: "Done" },
+    });
+    expect(out.properties_set).toEqual(["Stage"]);
+  });
+
+  it("rejects an unknown property and a malformed --set", async () => {
+    setClient({
+      pages: {
+        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
+        update: vi.fn(),
+      },
+    });
+    await expect(
+      pageCommand(["update", "p1", "--set", "Nope=1"]),
+    ).rejects.toBeInstanceOf(AxiError);
+    await expect(
+      pageCommand(["update", "p1", "--set", "noequals"]),
+    ).rejects.toBeInstanceOf(AxiError);
+    // a page with no properties map at all → still rejects the unknown property
+    setClient({
+      pages: { retrieve: vi.fn().mockResolvedValue({}), update: vi.fn() },
+    });
+    await expect(
+      pageCommand(["update", "p1", "--set", "Stage=Done"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+});
+
+describe("page archive", () => {
+  it("archives an active page, then no-ops", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    setClient({ pages: { retrieve: vi.fn().mockResolvedValue({}), update } });
+    const out: any = await pageCommand(["archive", "p1"]);
+    expect(update.mock.calls[0][0].in_trash).toBe(true);
+    expect(out.result).toBe("archived");
+
+    setClient({
+      pages: {
+        retrieve: vi.fn().mockResolvedValue({ in_trash: true }),
+        update: vi.fn(),
+      },
+    });
+    expect((await pageCommand(["archive", "p1"])).result).toContain(
+      "already archived",
+    );
+  });
+
+  it("restores a trashed page, then no-ops", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    setClient({
+      pages: {
+        retrieve: vi.fn().mockResolvedValue({ archived: true }),
+        update,
+      },
+    });
+    const out: any = await pageCommand(["archive", "p1", "--restore"]);
+    expect(update.mock.calls[0][0].in_trash).toBe(false);
+    expect(out.result).toBe("restored");
+
+    setClient({
+      pages: {
+        retrieve: vi.fn().mockResolvedValue({ in_trash: false }),
+        update: vi.fn(),
+      },
+    });
+    expect(
+      (await pageCommand(["archive", "p1", "--restore"])).result,
+    ).toContain("already active");
+  });
+
+  it("requires an id", async () => {
+    setClient({});
+    await expect(pageCommand(["archive"])).rejects.toBeInstanceOf(AxiError);
   });
 });

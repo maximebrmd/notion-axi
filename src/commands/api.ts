@@ -7,7 +7,7 @@ export const API_HELP = `usage: notion-axi api <path> [flags]
        notion-axi api <method> <path> [flags]
 
 Call any Notion REST endpoint directly — an escape hatch for things the
-dedicated commands don't cover (comments, file uploads, complex filters).
+dedicated commands don't cover (file uploads, complex filters, raw queries).
 
 flags:
   --method <get|post|patch|delete>   HTTP method (default: get; or pass it as the first arg)

@@ -91,22 +91,28 @@ notion-axi page create --parent <id> --title "Meeting notes" --content "# Agenda
 notion-axi page create --parent <id> --title "Spec" --content-file ./spec.md
 notion-axi page create --parent <id> --title "Ship v2" --db   # new row in a database
 notion-axi page update <id> --append "## Follow-ups"
+notion-axi page update <id> --set Status=Done --set "Due=2026-07-01"  # set row properties
+notion-axi page archive <id>                  # trash a page (--restore to undo)
+notion-axi comments add <id> "Looks good — shipping"
+notion-axi whoami                             # token identity (integration vs PAT)
 notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape hatch
 notion-axi setup hooks                        # install optional agent session hooks
 ```
 
-Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `--replace` all take markdown — or read it from a file with `--content-file` / `--append-file` / `--replace-file`. For `db` commands, `<id>` may be a database **or** a data-source id — a database resolves to its first data source automatically (use `--source <id>` to target a specific one). Use `api` for anything the dedicated commands don't cover (comments, file uploads, complex filters).
+Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `--replace` all take markdown — or read it from a file with `--content-file` / `--append-file` / `--replace-file`. For `db` commands, `<id>` may be a database **or** a data-source id — a database resolves to its first data source automatically (use `--source <id>` to target a specific one). Use `api` for anything the dedicated commands don't cover (file uploads, complex filters).
 
 ### Commands
 
-| Command  | Description                                                        |
-| -------- | ------------------------------------------------------------------ |
-| `search` | Search pages & databases (`--fields url` to widen)                 |
-| `page`   | Pages — `view`, `create`, `update` (markdown inline or `--*-file`) |
-| `db`     | Databases — `view` (schema), `query` (rows; `--fields`/`--full`)   |
-| `users`  | List workspace users (internal integration only)                   |
-| `api`    | Call any Notion REST endpoint directly (escape hatch)              |
-| `setup`  | Install optional agent session hooks                               |
+| Command    | Description                                                               |
+| ---------- | ------------------------------------------------------------------------- |
+| `search`   | Search pages & databases (`--fields url` to widen)                        |
+| `page`     | Pages — `view`, `create`, `update` (body + `--set` properties), `archive` |
+| `db`       | Databases — `view` (schema), `query` (rows; `--fields`/`--full`)          |
+| `users`    | List workspace users (internal integration only)                          |
+| `comments` | `list` / `add` page comments                                              |
+| `whoami`   | Show the token's identity (integration vs PAT) and workspace              |
+| `api`      | Call any Notion REST endpoint directly (escape hatch)                     |
+| `setup`    | Install optional agent session hooks                                      |
 
 ### Global flags
 

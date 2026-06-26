@@ -58,6 +58,6 @@ describe("main", () => {
   it("serves per-command help", async () => {
     const c = capture();
     await main({ argv: ["page", "--help"], stdout: c.stdout });
-    expect(c.read()).toContain("notion-axi page <view|create|update>");
+    expect(c.read()).toContain("notion-axi page <view|create|update|archive>");
   });
 });
