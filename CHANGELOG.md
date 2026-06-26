@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.4.0...notion-axi-v0.5.0) (2026-06-26)
+
+
+### Features
+
+* **commands:** add block list/delete, users get, and comments delete ([#15](https://github.com/maximebrmd/notion-axi/issues/15)) ([0093fa5](https://github.com/maximebrmd/notion-axi/commit/0093fa5e1054a16f33932101b14b4ca49df33d32))
+
 ## [0.4.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.3.0...notion-axi-v0.4.0) (2026-06-26)
 
 
