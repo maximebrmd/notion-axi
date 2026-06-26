@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { intFlag, parseArgs, strFlag } from "../src/args.js";
+import { collectFlag, intFlag, parseArgs, strFlag } from "../src/args.js";
 
 describe("parseArgs", () => {
   it("splits positionals and value flags", () => {
@@ -42,5 +42,14 @@ describe("intFlag / strFlag", () => {
     expect(strFlag("hi")).toBe("hi");
     expect(strFlag(true)).toBeUndefined();
     expect(strFlag(undefined)).toBeUndefined();
+  });
+});
+
+describe("collectFlag", () => {
+  it("collects every occurrence of a repeatable flag", () => {
+    expect(
+      collectFlag(["--set", "a=1", "--set=b=2", "x", "--set", "c=3"], "set"),
+    ).toEqual(["a=1", "b=2", "c=3"]);
+    expect(collectFlag(["--other", "z"], "set")).toEqual([]);
   });
 });

@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
-import { parseArgs, strFlag } from "../args.js";
+import { collectFlag, parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
 import {
+  buildPropertyValue,
   objectTitle,
   propertyValue,
   shortDate,
@@ -11,30 +12,32 @@ import {
 } from "../format.js";
 import { call, getClient } from "../notion.js";
 
-export const PAGE_HELP = `usage: notion-axi page <view|create|update> ...
+export const PAGE_HELP = `usage: notion-axi page <view|create|update|archive> ...
 
 subcommands:
   view <id> [--full]
       Show properties and the page body (markdown). Body is previewed to
       ~1500 chars unless --full is given.
 
-  create --parent <id> --title <text> [--content <md> | --content-file <path>] [--db]
+  create --parent <id> --title <text> [--content <md> | --content-file <path>] [--db] [--set Name=value ...]
       Create a page. By default --parent is a page id; pass --db to create
-      the page as a row inside a database (data source) id instead.
+      the page as a row inside a database (data source). --set sets row
+      properties (repeatable; requires --db).
 
-  update <id> (--append <md> | --append-file <path> | --replace <md> | --replace-file <path>)
-      Append markdown to the end of a page, or replace its entire content.
+  update <id> [--append <md> | --append-file <path>] [--replace <md> | --replace-file <path>] [--set Name=value ...]
+      Append/replace the page body and/or set properties. --set is repeatable
+      (e.g. --set Status=Done --set "Due=2026-07-01"; ranges as start..end;
+      multi-select / people / relation as comma-separated values).
 
-For long or multi-line markdown, the --*-file flags read the body from a UTF-8
-file instead of the command line.
+  archive <id> [--restore]
+      Move a page to the trash, or restore it with --restore. Idempotent.
 
 examples:
-  notion-axi page view 24f1e2a3b4c5...
-  notion-axi page create --parent 24f1... --title "Meeting notes" --content "# Agenda"
-  notion-axi page create --parent 24f1... --title "Spec" --content-file ./spec.md
-  notion-axi page create --parent 9ab2... --title "New task" --db
+  notion-axi page view 24f1...
+  notion-axi page create --parent 9ab2... --title "New task" --db --set Status=Todo
   notion-axi page update 24f1... --append "## Follow-ups"
-  notion-axi page update 24f1... --replace-file ./body.md
+  notion-axi page update 24f1... --set Status=Done --set "Due=2026-07-01"
+  notion-axi page archive 24f1...
 `;
 
 const BODY_PREVIEW = 1500;
@@ -62,6 +65,31 @@ function contentFrom(
   return inline;
 }
 
+/** Parse repeatable `--set Name=value` entries into [name, value] pairs. */
+function parseSets(entries: string[]): Array<[string, string]> {
+  return entries.map((e) => {
+    const i = e.indexOf("=");
+    if (i < 0) throw usage(`--set must be Name=value (got "${e}")`);
+    return [e.slice(0, i).trim(), e.slice(i + 1)];
+  });
+}
+
+/** Build a `properties` payload from --set pairs against a name→schema map. */
+function buildProperties(sets: Array<[string, string]>, schema: Obj): Obj {
+  const props: Obj = {};
+  for (const [name, value] of sets) {
+    const type = schema[name]?.type;
+    if (!type) {
+      throw usage(
+        `Unknown property: ${name}`,
+        "Run `notion-axi db view <id>` to see valid property names",
+      );
+    }
+    props[name] = buildPropertyValue(type, value);
+  }
+  return props;
+}
+
 export async function pageCommand(args: string[]) {
   const sub = args[0];
   const rest = args.slice(1);
@@ -72,12 +100,15 @@ export async function pageCommand(args: string[]) {
       return pageCreate(rest);
     case "update":
       return pageUpdate(rest);
+    case "archive":
+      return pageArchive(rest);
     default:
       throw usage(
         sub ? `Unknown page subcommand "${sub}"` : "Missing page subcommand",
         "Run `notion-axi page view <id>`",
         "Run `notion-axi page create --parent <id> --title <text>`",
-        "Run `notion-axi page update <id> --append <markdown>`",
+        "Run `notion-axi page update <id> --set Name=value`",
+        "Run `notion-axi page archive <id>`",
       );
   }
 }
@@ -143,6 +174,7 @@ async function pageCreate(args: string[]) {
       "Missing --title",
       "Run `notion-axi page create --parent <id> --title <text>`",
     );
+  const sets = parseSets(collectFlag(args, "set"));
 
   const notion = getClient();
   let parentRef: Obj;
@@ -157,8 +189,17 @@ async function pageCreate(args: string[]) {
         (k) => ds.properties[k]?.type === "title",
       ) ?? "Name";
     parentRef = { data_source_id: parent };
-    properties = { [titleProp]: { title: [{ text: { content: title } }] } };
+    properties = {
+      [titleProp]: { title: [{ text: { content: title } }] },
+      ...buildProperties(sets, ds.properties ?? {}),
+    };
   } else {
+    if (sets.length > 0) {
+      throw usage(
+        "--set requires creating a database row (--db)",
+        "Set properties afterward with `notion-axi page update <id> --set ...`",
+      );
+    }
     parentRef = { page_id: parent };
     properties = { title: { title: [{ text: { content: title } }] } };
   }
@@ -198,20 +239,33 @@ async function pageUpdate(args: string[]) {
   if (!id)
     throw usage(
       "Missing page id",
-      "Run `notion-axi page update <id> --append <markdown>`",
+      "Run `notion-axi page update <id> --set Name=value`",
     );
 
   const append = contentFrom(flags, "append");
   const replace = contentFrom(flags, "replace");
-  if (append === undefined && replace === undefined) {
+  const sets = parseSets(collectFlag(args, "set"));
+  if (append === undefined && replace === undefined && sets.length === 0) {
     throw usage(
       "Nothing to update",
+      "Run `notion-axi page update <id> --set Name=value` to set a property",
       "Run `notion-axi page update <id> --append <markdown>` to append content",
       "Run `notion-axi page update <id> --replace <markdown>` to overwrite content",
     );
   }
 
   const notion = getClient();
+  const out: Obj = { updated: id };
+
+  if (sets.length > 0) {
+    const page: Obj = await call(() => notion.pages.retrieve({ page_id: id }));
+    const properties = buildProperties(sets, page.properties ?? {});
+    await call(() =>
+      notion.pages.update({ page_id: id, properties: properties as any }),
+    );
+    out.properties_set = sets.map(([name]) => name);
+  }
+
   if (replace !== undefined) {
     await call(() =>
       notion.pages.updateMarkdown({
@@ -220,22 +274,49 @@ async function pageUpdate(args: string[]) {
         replace_content: { new_str: replace, allow_deleting_content: true },
       }),
     );
-  } else {
+    out.body = "replaced";
+  } else if (append !== undefined) {
     await call(() =>
       notion.pages.updateMarkdown({
         page_id: id,
         type: "insert_content",
-        insert_content: {
-          content: append as string,
-          position: { type: "end" },
-        },
+        insert_content: { content: append, position: { type: "end" } },
       }),
     );
+    out.body = "appended";
   }
 
+  out.help = [`Run \`notion-axi page view ${id}\` to confirm`];
+  return out;
+}
+
+async function pageArchive(args: string[]) {
+  const { positionals, flags } = parseArgs(args, ["restore"]);
+  const id = positionals[0];
+  if (!id) throw usage("Missing page id", "Run `notion-axi page archive <id>`");
+  const restore = flags.restore === true;
+  const target = !restore; // archive → true (in trash); restore → false
+
+  const notion = getClient();
+  const page: Obj = await call(() => notion.pages.retrieve({ page_id: id }));
+  const trashed = page.in_trash ?? page.archived ?? false;
+
+  if (trashed === target) {
+    return {
+      page: id,
+      result: target ? "already archived (no-op)" : "already active (no-op)",
+    };
+  }
+
+  await call(() =>
+    notion.pages.update({ page_id: id, in_trash: target } as any),
+  );
+
   return {
-    updated: id,
-    mode: replace !== undefined ? "replace" : "append",
-    help: [`Run \`notion-axi page view ${id}\` to confirm`],
+    page: id,
+    result: target ? "archived" : "restored",
+    help: target
+      ? [`Run \`notion-axi page archive ${id} --restore\` to undo`]
+      : undefined,
   };
 }

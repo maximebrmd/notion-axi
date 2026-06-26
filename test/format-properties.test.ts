@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { objectTitle, propertyValue, richTextToPlain } from "../src/format.js";
+import {
+  buildPropertyValue,
+  objectTitle,
+  propertyValue,
+  richTextToPlain,
+} from "../src/format.js";
+import { AxiError } from "../src/errors.js";
 
 describe("propertyValue — every property type", () => {
   it("text-like types", () => {
@@ -163,5 +169,50 @@ describe("objectTitle / richTextToPlain edges", () => {
   it("richTextToPlain ignores empty segments", () => {
     expect(richTextToPlain([{}, { plain_text: "x" }])).toBe("x");
     expect(richTextToPlain("nope" as never)).toBe("");
+  });
+});
+
+describe("buildPropertyValue", () => {
+  it("builds each settable type", () => {
+    expect(buildPropertyValue("title", "T")).toEqual({
+      title: [{ text: { content: "T" } }],
+    });
+    expect(buildPropertyValue("rich_text", "x")).toEqual({
+      rich_text: [{ text: { content: "x" } }],
+    });
+    expect(buildPropertyValue("number", "7")).toEqual({ number: 7 });
+    expect(buildPropertyValue("select", "A")).toEqual({
+      select: { name: "A" },
+    });
+    expect(buildPropertyValue("status", "Done")).toEqual({
+      status: { name: "Done" },
+    });
+    expect(buildPropertyValue("multi_select", "a, b ,c")).toEqual({
+      multi_select: [{ name: "a" }, { name: "b" }, { name: "c" }],
+    });
+    expect(buildPropertyValue("date", "2026-07-01")).toEqual({
+      date: { start: "2026-07-01" },
+    });
+    expect(buildPropertyValue("date", "2026-07-01..2026-07-05")).toEqual({
+      date: { start: "2026-07-01", end: "2026-07-05" },
+    });
+    expect(buildPropertyValue("checkbox", "done")).toEqual({ checkbox: true });
+    expect(buildPropertyValue("checkbox", "no")).toEqual({ checkbox: false });
+    expect(buildPropertyValue("url", "u")).toEqual({ url: "u" });
+    expect(buildPropertyValue("email", "a@b.c")).toEqual({ email: "a@b.c" });
+    expect(buildPropertyValue("phone_number", "1")).toEqual({
+      phone_number: "1",
+    });
+    expect(buildPropertyValue("people", "u1,u2")).toEqual({
+      people: [{ id: "u1" }, { id: "u2" }],
+    });
+    expect(buildPropertyValue("relation", "p1")).toEqual({
+      relation: [{ id: "p1" }],
+    });
+  });
+
+  it("rejects a non-number and read-only types", () => {
+    expect(() => buildPropertyValue("number", "abc")).toThrow(AxiError);
+    expect(() => buildPropertyValue("formula", "x")).toThrow(AxiError);
   });
 });

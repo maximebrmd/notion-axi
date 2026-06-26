@@ -7,6 +7,8 @@ import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { pageCommand, PAGE_HELP } from "./commands/page.js";
 import { dbCommand, DB_HELP } from "./commands/db.js";
 import { usersCommand, USERS_HELP } from "./commands/users.js";
+import { commentsCommand, COMMENTS_HELP } from "./commands/comments.js";
+import { whoamiCommand, WHOAMI_HELP } from "./commands/whoami.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
 
@@ -14,8 +16,8 @@ export const DESCRIPTION =
   "Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for Notion operations.";
 
 export const TOP_HELP = `usage: notion-axi [command] [args] [flags]
-commands[7]:
-  (none)=home, search, page, db, users, api, setup
+commands[9]:
+  (none)=home, search, page, db, users, comments, whoami, api, setup
 flags:
   --help, -v/-V/--version
 auth:
@@ -25,8 +27,9 @@ examples:
   notion-axi search roadmap
   notion-axi page view <id>
   notion-axi db query <id>
-  notion-axi page create --parent <id> --title "<text>"
-  notion-axi api users/me
+  notion-axi page update <id> --set Status=Done
+  notion-axi comments add <id> "<text>"
+  notion-axi whoami
   notion-axi setup hooks
 `;
 
@@ -35,6 +38,8 @@ const COMMAND_HELP: Record<string, string> = {
   page: PAGE_HELP,
   db: DB_HELP,
   users: USERS_HELP,
+  comments: COMMENTS_HELP,
+  whoami: WHOAMI_HELP,
   api: API_HELP,
   setup: SETUP_HELP,
 };
@@ -44,6 +49,8 @@ const COMMANDS = {
   page: (args: string[]) => pageCommand(args),
   db: (args: string[]) => dbCommand(args),
   users: (args: string[]) => usersCommand(args),
+  comments: (args: string[]) => commentsCommand(args),
+  whoami: () => whoamiCommand(),
   api: (args: string[]) => apiCommand(args),
   setup: (args: string[]) => setupCommand(args),
 };
