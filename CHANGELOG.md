@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.5.0...notion-axi-v1.0.0) (2026-06-26)
+
+
+### Documentation
+
+* finalize the command surface for 1.0.0 ([#17](https://github.com/maximebrmd/notion-axi/issues/17)) ([c797c91](https://github.com/maximebrmd/notion-axi/commit/c797c91921eb93c7de40716270447b158d7b3585))
+
 ## [0.5.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.4.0...notion-axi-v0.5.0) (2026-06-26)
 
 
