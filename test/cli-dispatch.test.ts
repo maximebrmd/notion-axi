@@ -34,6 +34,7 @@ describe("command dispatch", () => {
     expect(await run(["api", "users/me"])).toContain("AUTH_REQUIRED");
     expect(await run(["comments", "list", "x"])).toContain("AUTH_REQUIRED");
     expect(await run(["whoami"])).toContain("AUTH_REQUIRED");
+    expect(await run(["block", "list", "x"])).toContain("AUTH_REQUIRED");
   });
 
   it("routes setup and file to their handlers (validation errors, no side effects)", async () => {

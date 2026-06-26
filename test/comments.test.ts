@@ -101,3 +101,18 @@ describe("comments add", () => {
     await expect(commentsCommand(["add"])).rejects.toBeInstanceOf(AxiError);
   });
 });
+
+describe("comments delete", () => {
+  it("deletes a comment", async () => {
+    const del = vi.fn().mockResolvedValue({});
+    setClient({ comments: { delete: del } });
+    const out: any = await commentsCommand(["delete", "c1"]);
+    expect(del.mock.calls[0][0]).toEqual({ comment_id: "c1" });
+    expect(out.deleted).toBe("c1");
+  });
+
+  it("requires a comment id", async () => {
+    setClient({});
+    await expect(commentsCommand(["delete"])).rejects.toBeInstanceOf(AxiError);
+  });
+});

@@ -3,16 +3,17 @@ import { usage } from "../errors.js";
 import { richTextToPlain, shortDate, type Obj } from "../format.js";
 import { call, getClient } from "../notion.js";
 
-export const COMMENTS_HELP = `usage: notion-axi comments <list|add> <id> ...
+export const COMMENTS_HELP = `usage: notion-axi comments <list|add|delete> <id> ...
 
 subcommands:
   list <id> [--limit <n>]   List comments on a page (or block)
   add <id> <text>           Add a comment to a page
+  delete <comment_id>       Delete a comment
 
 examples:
   notion-axi comments list 24f1...
-  notion-axi comments list 24f1... --limit 100
   notion-axi comments add 24f1... "Looks good — shipping it."
+  notion-axi comments delete 9ab2...
 `;
 
 export async function commentsCommand(args: string[]) {
@@ -23,6 +24,8 @@ export async function commentsCommand(args: string[]) {
       return commentsList(rest);
     case "add":
       return commentsAdd(rest);
+    case "delete":
+      return commentsDelete(rest);
     default:
       throw usage(
         sub
@@ -30,8 +33,23 @@ export async function commentsCommand(args: string[]) {
           : "Missing comments subcommand",
         "Run `notion-axi comments list <id>`",
         "Run `notion-axi comments add <id> <text>`",
+        "Run `notion-axi comments delete <comment_id>`",
       );
   }
+}
+
+async function commentsDelete(args: string[]) {
+  const { positionals } = parseArgs(args);
+  const id = positionals[0];
+  if (!id) {
+    throw usage(
+      "Missing comment id",
+      "Run `notion-axi comments delete <comment_id>`",
+    );
+  }
+  const notion = getClient();
+  await call(() => notion.comments.delete({ comment_id: id }));
+  return { deleted: id, result: "comment deleted" };
 }
 
 async function commentsList(args: string[]) {

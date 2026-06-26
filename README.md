@@ -99,6 +99,7 @@ notion-axi db edit <id> --add Priority:select --remove OldField
 notion-axi comments add <id> "Looks good — shipping"
 notion-axi whoami                             # token identity (integration vs PAT)
 notion-axi file upload ./diagram.png --attach <page_id>   # upload + attach a file
+notion-axi block list <page_id>               # a page's child blocks (ids + text)
 notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape hatch
 notion-axi setup hooks                        # install optional agent session hooks
 ```
