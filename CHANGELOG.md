@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v1.0.0...notion-axi-v2.0.0) (2026-06-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* `ntn` must be installed (`curl -fsSL https://ntn.dev | bash`) and authenticated (`ntn login`). The `NOTION_TOKEN`/`NOTION_API_KEY` variables are replaced by `ntn`'s own auth (keychain or `NOTION_API_TOKEN`).
+
+### Features
+
+* wrap the official Notion CLI (ntn) instead of @notionhq/client ([#19](https://github.com/maximebrmd/notion-axi/issues/19)) ([65222c9](https://github.com/maximebrmd/notion-axi/commit/65222c92795f82ef68bbb080082f76e5083ec388))
+
 ## [1.0.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.5.0...notion-axi-v1.0.0) (2026-06-26)
 
 
