@@ -6,6 +6,7 @@ import { homeCommand } from "./commands/home.js";
 import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { pageCommand, PAGE_HELP } from "./commands/page.js";
 import { dbCommand, DB_HELP } from "./commands/db.js";
+import { blockCommand, BLOCK_HELP } from "./commands/block.js";
 import { usersCommand, USERS_HELP } from "./commands/users.js";
 import { commentsCommand, COMMENTS_HELP } from "./commands/comments.js";
 import { whoamiCommand, WHOAMI_HELP } from "./commands/whoami.js";
@@ -17,8 +18,8 @@ export const DESCRIPTION =
   "Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for Notion operations.";
 
 export const TOP_HELP = `usage: notion-axi [command] [args] [flags]
-commands[10]:
-  (none)=home, search, page, db, users, comments, whoami, file, api, setup
+commands[11]:
+  (none)=home, search, page, db, block, users, comments, whoami, file, api, setup
 flags:
   --help, -v/-V/--version
 auth:
@@ -38,6 +39,7 @@ const COMMAND_HELP: Record<string, string> = {
   search: SEARCH_HELP,
   page: PAGE_HELP,
   db: DB_HELP,
+  block: BLOCK_HELP,
   users: USERS_HELP,
   comments: COMMENTS_HELP,
   whoami: WHOAMI_HELP,
@@ -50,6 +52,7 @@ const COMMANDS = {
   search: (args: string[]) => searchCommand(args),
   page: (args: string[]) => pageCommand(args),
   db: (args: string[]) => dbCommand(args),
+  block: (args: string[]) => blockCommand(args),
   users: (args: string[]) => usersCommand(args),
   comments: (args: string[]) => commentsCommand(args),
   whoami: () => whoamiCommand(),

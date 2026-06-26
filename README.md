@@ -99,6 +99,7 @@ notion-axi db edit <id> --add Priority:select --remove OldField
 notion-axi comments add <id> "Looks good — shipping"
 notion-axi whoami                             # token identity (integration vs PAT)
 notion-axi file upload ./diagram.png --attach <page_id>   # upload + attach a file
+notion-axi block list <page_id>               # a page's child blocks (ids + text)
 notion-axi api post search --body '{"query":"roadmap"}'  # raw endpoint escape hatch
 notion-axi setup hooks                        # install optional agent session hooks
 ```
@@ -112,8 +113,9 @@ Page bodies are markdown (via the Notion API), so `--content`, `--append`, and `
 | `search`   | Search pages & databases (`--fields url` to widen)                     |
 | `page`     | Pages — `view`, `create`, `update` (body + `--set`), `archive`, `move` |
 | `db`       | Databases — `view`, `query`, `create`, `edit` (schema)                 |
-| `users`    | List workspace users (internal integration only)                       |
-| `comments` | `list` / `add` page comments                                           |
+| `block`    | Blocks — `list` a page's child blocks, `delete` one                    |
+| `users`    | List workspace users or `get` one by id (internal integration only)    |
+| `comments` | `list` / `add` / `delete` page comments                                |
 | `whoami`   | Show the token's identity (integration vs PAT) and workspace           |
 | `api`      | Call any Notion REST endpoint directly (escape hatch)                  |
 | `setup`    | Install optional agent session hooks                                   |
