@@ -1,11 +1,11 @@
 import { intFlag, listFlag, parseArgs } from "../args.js";
 import { usage } from "../errors.js";
 import { objectTitle, shortDate, type Obj } from "../format.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 
 export const SEARCH_HELP = `usage: notion-axi search <query> [flags]
 
-Search pages and databases shared with the integration, newest first.
+Search pages and databases in the workspace, newest first.
 
 flags:
   --type <page|db>   Restrict to pages or databases
@@ -44,15 +44,15 @@ export async function searchCommand(args: string[]) {
     filter = { property: "object", value };
   }
 
-  const notion = getClient();
-  const res: Obj = await call(() =>
-    notion.search({
-      query: query || undefined,
-      filter,
+  const res: Obj = await ntnApi("v1/search", {
+    method: "POST",
+    body: {
+      ...(query ? { query } : {}),
+      ...(filter ? { filter } : {}),
       page_size: Math.min(limit, 100),
       sort: { timestamp: "last_edited_time", direction: "descending" },
-    }),
-  );
+    },
+  });
 
   const withUrl = listFlag(flags.fields).includes("url");
   const results = (res.results ?? []).slice(0, limit).map((r: Obj) => ({
@@ -68,11 +68,8 @@ export async function searchCommand(args: string[]) {
       results: [],
       result: query
         ? `0 items match "${query}"${filter ? ` (type=${flags.type})` : ""}`
-        : "0 items shared with this integration yet",
-      help: [
-        "Share pages/databases with your integration in Notion → ••• → Connections",
-        "Try a broader query or drop --type",
-      ],
+        : "0 items in this workspace yet",
+      help: ["Try a broader query or drop --type"],
     };
   }
 

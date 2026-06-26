@@ -1,44 +1,35 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { apiCommand } from "../src/commands/api.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn() };
-});
-
-function setRequest(result: unknown = { ok: true }) {
-  const request = vi.fn().mockResolvedValue(result);
-  vi.mocked(notion.getClient).mockReturnValue({ request } as never);
-  return request;
-}
-
+const api = vi.mocked(ntnApi);
 afterEach(() => vi.clearAllMocks());
 
 describe("apiCommand", () => {
-  it("defaults to GET and strips a leading slash", async () => {
-    const request = setRequest({ object: "user" });
+  it("defaults to GET and forwards the path", async () => {
+    api.mockResolvedValue({ object: "user" });
     const out: any = await apiCommand(["/users/me"]);
-    expect(request.mock.calls[0][0]).toMatchObject({
-      path: "users/me",
-      method: "get",
-    });
+    expect(api.mock.calls[0][0]).toBe("/users/me");
+    expect(api.mock.calls[0][1]).toMatchObject({ method: "get" });
     expect(out.result).toEqual({ object: "user" });
   });
 
   it("accepts `<method> <path>` form with a JSON body", async () => {
-    const request = setRequest();
+    api.mockResolvedValue({});
     await apiCommand(["post", "search", "--body", '{"query":"x"}']);
-    expect(request.mock.calls[0][0]).toMatchObject({
-      path: "search",
+    expect(api.mock.calls[0][0]).toBe("search");
+    expect(api.mock.calls[0][1]).toMatchObject({
       method: "post",
       body: { query: "x" },
     });
   });
 
-  it("accepts --method and --query", async () => {
-    const request = setRequest();
+  it("accepts --method and --query (scalarized)", async () => {
+    api.mockResolvedValue({});
     await apiCommand([
       "comments",
       "--method",
@@ -46,35 +37,36 @@ describe("apiCommand", () => {
       "--query",
       '{"block_id":"b"}',
     ]);
-    expect(request.mock.calls[0][0]).toMatchObject({
+    expect(api.mock.calls[0][1]).toMatchObject({
       method: "get",
       query: { block_id: "b" },
     });
   });
 
+  it("stringifies nested query values", async () => {
+    api.mockResolvedValue({});
+    await apiCommand(["x", "--query", '{"filter":{"a":1}}']);
+    expect(api.mock.calls[0][1].query).toEqual({ filter: '{"a":1}' });
+  });
+
   it("treats a non-method first positional as the path", async () => {
-    const request = setRequest();
+    api.mockResolvedValue({});
     await apiCommand(["databases", "ignored"]);
-    expect(request.mock.calls[0][0]).toMatchObject({
-      path: "databases",
-      method: "get",
-    });
+    expect(api.mock.calls[0][0]).toBe("databases");
+    expect(api.mock.calls[0][1]).toMatchObject({ method: "get" });
   });
 
   it("requires a path", async () => {
-    setRequest();
     await expect(apiCommand([])).rejects.toBeInstanceOf(AxiError);
   });
 
   it("rejects an unknown method", async () => {
-    setRequest();
     await expect(
       apiCommand(["page", "--method", "fetch"]),
     ).rejects.toBeInstanceOf(AxiError);
   });
 
   it("rejects invalid JSON in --body", async () => {
-    setRequest();
     await expect(
       apiCommand(["post", "search", "--body", "{nope"]),
     ).rejects.toBeInstanceOf(AxiError);

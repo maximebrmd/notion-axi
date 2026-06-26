@@ -23,7 +23,7 @@ commands[11]:
 flags:
   --help, -v/-V/--version
 auth:
-  NOTION_TOKEN — a Personal Access Token (https://www.notion.so/developers/tokens) or internal integration secret
+  Uses the official Notion CLI (ntn) — install: curl -fsSL https://ntn.dev | bash, then: ntn login
 examples:
   notion-axi
   notion-axi search roadmap

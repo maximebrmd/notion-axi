@@ -1,15 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Notion network layer so we can drive `has_more` / `limit`
-// combinations through the real command + render path without a token.
-const search = vi.fn();
-vi.mock("../src/notion.js", () => ({
-  getClient: () => ({ search }),
-  call: <T>(fn: () => Promise<T>) => fn(),
-  hasToken: () => true,
-}));
+// combinations through the real command + render path.
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
 
+import { ntnApi } from "../src/ntn.js";
 import { main } from "../src/cli.js";
+
+const api = vi.mocked(ntnApi);
 
 function capture() {
   let out = "";
@@ -22,7 +20,7 @@ function capture() {
 const HINT = "Raise the cap with";
 
 async function runSearch(limit: number, has_more: boolean) {
-  search.mockResolvedValueOnce({
+  api.mockResolvedValueOnce({
     results: [
       {
         id: "p1",
@@ -42,12 +40,10 @@ async function runSearch(limit: number, has_more: boolean) {
 
 describe("--limit hint off-by-one (search)", () => {
   beforeEach(() => {
-    process.env.NOTION_TOKEN = "ntn_test";
     process.exitCode = undefined;
-    search.mockReset();
+    api.mockReset();
   });
   afterEach(() => {
-    delete process.env.NOTION_TOKEN;
     process.exitCode = undefined;
   });
 

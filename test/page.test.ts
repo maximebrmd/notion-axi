@@ -1,18 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { pageCommand } from "../src/commands/page.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
+import { apiCall, routeNtn } from "./support.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn() };
-});
-
-function setClient(client: Record<string, unknown>) {
-  vi.mocked(notion.getClient).mockReturnValue(client as never);
-  return client;
-}
-
+const api = vi.mocked(ntnApi);
 afterEach(() => vi.clearAllMocks());
 
 describe("page routing", () => {
@@ -29,9 +24,14 @@ describe("page view", () => {
 
   it("shows properties (dropping empties) and truncates a long body", async () => {
     const long = "x".repeat(2000);
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({
+    routeNtn(api, [
+      {
+        path: /\/markdown$/,
+        res: { markdown: long, truncated: false },
+      },
+      {
+        path: /^v1\/pages\//,
+        res: {
           id: "p1",
           url: "https://n/p1",
           last_edited_time: "2026-06-20T0:0:0Z",
@@ -40,12 +40,9 @@ describe("page view", () => {
             Status: { type: "select", select: { name: "Active" } },
             Empty: { type: "rich_text", rich_text: [] },
           },
-        }),
-        retrieveMarkdown: vi
-          .fn()
-          .mockResolvedValue({ markdown: long, truncated: false }),
+        },
       },
-    });
+    ]);
     const out: any = await pageCommand(["view", "p1"]);
     expect(out.page).toEqual({
       id: "p1",
@@ -61,14 +58,10 @@ describe("page view", () => {
   });
 
   it("returns the whole body with --full and no help", async () => {
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ id: "p1", properties: {} }),
-        retrieveMarkdown: vi
-          .fn()
-          .mockResolvedValue({ markdown: "short", truncated: false }),
-      },
-    });
+    routeNtn(api, [
+      { path: /\/markdown$/, res: { markdown: "short", truncated: false } },
+      { path: /^v1\/pages\//, res: { id: "p1", properties: {} } },
+    ]);
     const out: any = await pageCommand(["view", "p1", "--full"]);
     expect(out.body).toBe("short");
     expect(out.body_truncated).toBeUndefined();
@@ -76,14 +69,10 @@ describe("page view", () => {
   });
 
   it("handles an empty body and an API-truncated flag", async () => {
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ id: "p1", properties: {} }),
-        retrieveMarkdown: vi
-          .fn()
-          .mockResolvedValue({ markdown: "", truncated: true }),
-      },
-    });
+    routeNtn(api, [
+      { path: /\/markdown$/, res: { markdown: "", truncated: true } },
+      { path: /^v1\/pages\//, res: { id: "p1", properties: {} } },
+    ]);
     const out: any = await pageCommand(["view", "p1"]);
     expect(out.body).toBe("(no text content)");
     expect(out.body_truncated).toBe(true);
@@ -92,7 +81,6 @@ describe("page view", () => {
 
 describe("page create", () => {
   it("requires --parent and --title", async () => {
-    setClient({});
     await expect(
       pageCommand(["create", "--title", "t"]),
     ).rejects.toBeInstanceOf(AxiError);
@@ -102,11 +90,14 @@ describe("page create", () => {
   });
 
   it("creates under a page parent and appends content", async () => {
-    const create = vi
-      .fn()
-      .mockResolvedValue({ id: "new1", url: "https://n/new1" });
-    const updateMarkdown = vi.fn().mockResolvedValue({});
-    setClient({ pages: { create, updateMarkdown } });
+    routeNtn(api, [
+      {
+        path: "v1/pages",
+        method: "POST",
+        res: { id: "new1", url: "https://n/new1" },
+      },
+      { path: /\/markdown$/, method: "PATCH", res: {} },
+    ]);
     const out: any = await pageCommand([
       "create",
       "--parent",
@@ -116,45 +107,42 @@ describe("page create", () => {
       "--content",
       "# Agenda",
     ]);
-    expect(create.mock.calls[0][0].parent).toEqual({ page_id: "par1" });
-    expect(create.mock.calls[0][0].properties.title.title[0].text.content).toBe(
-      "Notes",
-    );
-    expect(updateMarkdown).toHaveBeenCalledOnce();
+    const body: any = apiCall(api, "v1/pages", "POST")?.[1].body;
+    expect(body.parent).toEqual({ page_id: "par1" });
+    expect(body.properties.title.title[0].text.content).toBe("Notes");
+    expect(apiCall(api, /\/markdown$/, "PATCH")).toBeDefined();
     expect(out.created).toBe("new1");
   });
 
   it("creates a row in a database using its title property", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "row1", url: "u" });
-    setClient({
-      dataSources: {
-        retrieve: vi.fn().mockResolvedValue({
+    routeNtn(api, [
+      {
+        path: /^v1\/data_sources\//,
+        res: {
           properties: { Task: { type: "title" }, Done: { type: "checkbox" } },
-        }),
+        },
       },
-      pages: { create },
-    });
+      { path: "v1/pages", method: "POST", res: { id: "row1", url: "u" } },
+    ]);
     await pageCommand(["create", "--parent", "ds1", "--title", "Ship", "--db"]);
-    expect(create.mock.calls[0][0].parent).toEqual({ data_source_id: "ds1" });
-    expect(create.mock.calls[0][0].properties.Task.title[0].text.content).toBe(
-      "Ship",
-    );
+    const body: any = apiCall(api, "v1/pages", "POST")?.[1].body;
+    expect(body.parent).toEqual({ data_source_id: "ds1" });
+    expect(body.properties.Task.title[0].text.content).toBe("Ship");
   });
 
   it("falls back to a 'Name' title property when the schema has none", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "row2", url: "u" });
-    setClient({
-      dataSources: { retrieve: vi.fn().mockResolvedValue({ properties: {} }) },
-      pages: { create },
-    });
+    routeNtn(api, [
+      { path: /^v1\/data_sources\//, res: { properties: {} } },
+      { path: "v1/pages", method: "POST", res: { id: "row2", url: "u" } },
+    ]);
     await pageCommand(["create", "--parent", "ds2", "--title", "X", "--db"]);
-    expect(create.mock.calls[0][0].properties.Name).toBeDefined();
+    const body: any = apiCall(api, "v1/pages", "POST")?.[1].body;
+    expect(body.properties.Name).toBeDefined();
   });
 });
 
 describe("page update", () => {
   it("requires an id and an action", async () => {
-    setClient({});
     await expect(pageCommand(["update"])).rejects.toBeInstanceOf(AxiError);
     await expect(pageCommand(["update", "p1"])).rejects.toBeInstanceOf(
       AxiError,
@@ -162,18 +150,20 @@ describe("page update", () => {
   });
 
   it("appends markdown", async () => {
-    const updateMarkdown = vi.fn().mockResolvedValue({});
-    setClient({ pages: { updateMarkdown } });
+    routeNtn(api, [{ path: /\/markdown$/, method: "PATCH", res: {} }]);
     const out: any = await pageCommand(["update", "p1", "--append", "more"]);
-    expect(updateMarkdown.mock.calls[0][0].type).toBe("insert_content");
+    expect(apiCall(api, /\/markdown$/, "PATCH")?.[1].body).toMatchObject({
+      type: "insert_content",
+    });
     expect(out.body).toBe("appended");
   });
 
   it("replaces content", async () => {
-    const updateMarkdown = vi.fn().mockResolvedValue({});
-    setClient({ pages: { updateMarkdown } });
+    routeNtn(api, [{ path: /\/markdown$/, method: "PATCH", res: {} }]);
     const out: any = await pageCommand(["update", "p1", "--replace", "fresh"]);
-    expect(updateMarkdown.mock.calls[0][0].type).toBe("replace_content");
+    expect(apiCall(api, /\/markdown$/, "PATCH")?.[1].body).toMatchObject({
+      type: "replace_content",
+    });
     expect(out.body).toBe("replaced");
   });
 });
@@ -182,13 +172,10 @@ describe("page update/create --set", () => {
   const schema = { Name: { type: "title" }, Stage: { type: "status" } };
 
   it("create --db --set merges properties from the data-source schema", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "n", url: "u" });
-    setClient({
-      dataSources: {
-        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
-      },
-      pages: { create },
-    });
+    routeNtn(api, [
+      { path: /^v1\/data_sources\//, res: { properties: schema } },
+      { path: "v1/pages", method: "POST", res: { id: "n", url: "u" } },
+    ]);
     await pageCommand([
       "create",
       "--parent",
@@ -199,13 +186,11 @@ describe("page update/create --set", () => {
       "--set",
       "Stage=Open",
     ]);
-    expect(create.mock.calls[0][0].properties.Stage).toEqual({
-      status: { name: "Open" },
-    });
+    const body: any = apiCall(api, "v1/pages", "POST")?.[1].body;
+    expect(body.properties.Stage).toEqual({ status: { name: "Open" } });
   });
 
   it("rejects --set without --db on create", async () => {
-    setClient({});
     await expect(
       pageCommand([
         "create",
@@ -220,37 +205,28 @@ describe("page update/create --set", () => {
   });
 
   it("update --set retrieves types and patches properties", async () => {
-    const update = vi.fn().mockResolvedValue({});
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
-        update,
-      },
-    });
+    routeNtn(api, [
+      { path: /^v1\/pages\//, method: "GET", res: { properties: schema } },
+      { path: /^v1\/pages\//, method: "PATCH", res: {} },
+    ]);
     const out: any = await pageCommand(["update", "p1", "--set", "Stage=Done"]);
-    expect(update.mock.calls[0][0].properties.Stage).toEqual({
-      status: { name: "Done" },
+    expect(apiCall(api, /^v1\/pages\//, "PATCH")?.[1].body).toMatchObject({
+      properties: { Stage: { status: { name: "Done" } } },
     });
     expect(out.properties_set).toEqual(["Stage"]);
   });
 
   it("rejects an unknown property and a malformed --set", async () => {
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ properties: schema }),
-        update: vi.fn(),
-      },
-    });
+    routeNtn(api, [
+      { path: /^v1\/pages\//, method: "GET", res: { properties: schema } },
+    ]);
     await expect(
       pageCommand(["update", "p1", "--set", "Nope=1"]),
     ).rejects.toBeInstanceOf(AxiError);
     await expect(
       pageCommand(["update", "p1", "--set", "noequals"]),
     ).rejects.toBeInstanceOf(AxiError);
-    // a page with no properties map at all → still rejects the unknown property
-    setClient({
-      pages: { retrieve: vi.fn().mockResolvedValue({}), update: vi.fn() },
-    });
+    routeNtn(api, [{ path: /^v1\/pages\//, method: "GET", res: {} }]);
     await expect(
       pageCommand(["update", "p1", "--set", "Stage=Done"]),
     ).rejects.toBeInstanceOf(AxiError);
@@ -259,67 +235,65 @@ describe("page update/create --set", () => {
 
 describe("page archive", () => {
   it("archives an active page, then no-ops", async () => {
-    const update = vi.fn().mockResolvedValue({});
-    setClient({ pages: { retrieve: vi.fn().mockResolvedValue({}), update } });
+    routeNtn(api, [
+      { path: /^v1\/pages\//, method: "GET", res: {} },
+      { path: /^v1\/pages\//, method: "PATCH", res: {} },
+    ]);
     const out: any = await pageCommand(["archive", "p1"]);
-    expect(update.mock.calls[0][0].in_trash).toBe(true);
+    expect(apiCall(api, /^v1\/pages\//, "PATCH")?.[1].body).toMatchObject({
+      in_trash: true,
+    });
     expect(out.result).toBe("archived");
 
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ in_trash: true }),
-        update: vi.fn(),
-      },
-    });
+    routeNtn(api, [
+      { path: /^v1\/pages\//, method: "GET", res: { in_trash: true } },
+    ]);
     expect((await pageCommand(["archive", "p1"])).result).toContain(
       "already archived",
     );
   });
 
   it("restores a trashed page, then no-ops", async () => {
-    const update = vi.fn().mockResolvedValue({});
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ archived: true }),
-        update,
-      },
-    });
+    routeNtn(api, [
+      { path: /^v1\/pages\//, method: "GET", res: { archived: true } },
+      { path: /^v1\/pages\//, method: "PATCH", res: {} },
+    ]);
     const out: any = await pageCommand(["archive", "p1", "--restore"]);
-    expect(update.mock.calls[0][0].in_trash).toBe(false);
+    expect(apiCall(api, /^v1\/pages\//, "PATCH")?.[1].body).toMatchObject({
+      in_trash: false,
+    });
     expect(out.result).toBe("restored");
 
-    setClient({
-      pages: {
-        retrieve: vi.fn().mockResolvedValue({ in_trash: false }),
-        update: vi.fn(),
-      },
-    });
+    routeNtn(api, [
+      { path: /^v1\/pages\//, method: "GET", res: { in_trash: false } },
+    ]);
     expect(
       (await pageCommand(["archive", "p1", "--restore"])).result,
     ).toContain("already active");
   });
 
   it("requires an id", async () => {
-    setClient({});
     await expect(pageCommand(["archive"])).rejects.toBeInstanceOf(AxiError);
   });
 });
 
 describe("page move", () => {
   it("moves under a page parent, or a database with --db", async () => {
-    const move = vi.fn().mockResolvedValue({});
-    setClient({ pages: { move } });
+    routeNtn(api, [{ path: /\/move$/, method: "POST", res: {} }]);
     await pageCommand(["move", "p1", "--to", "par"]);
-    expect(move.mock.calls[0][0].parent).toEqual({ page_id: "par" });
+    expect(apiCall(api, /\/move$/, "POST")?.[1].body).toEqual({
+      parent: { page_id: "par" },
+    });
 
-    const move2 = vi.fn().mockResolvedValue({});
-    setClient({ pages: { move: move2 } });
+    vi.clearAllMocks();
+    routeNtn(api, [{ path: /\/move$/, method: "POST", res: {} }]);
     await pageCommand(["move", "p1", "--to", "ds", "--db"]);
-    expect(move2.mock.calls[0][0].parent).toEqual({ data_source_id: "ds" });
+    expect(apiCall(api, /\/move$/, "POST")?.[1].body).toEqual({
+      parent: { data_source_id: "ds" },
+    });
   });
 
   it("requires an id and a --to parent", async () => {
-    setClient({});
     await expect(pageCommand(["move"])).rejects.toBeInstanceOf(AxiError);
     await expect(pageCommand(["move", "p1"])).rejects.toBeInstanceOf(AxiError);
   });

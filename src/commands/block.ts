@@ -1,7 +1,7 @@
 import { intFlag, parseArgs } from "../args.js";
 import { usage } from "../errors.js";
 import { richTextToPlain, type Obj } from "../format.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 
 export const BLOCK_HELP = `usage: notion-axi block <list|delete> <id> [flags]
 
@@ -44,13 +44,9 @@ async function blockList(args: string[]) {
     throw usage("Missing page id", "Run `notion-axi block list <page_id>`");
   const limit = intFlag(flags.limit, 50);
 
-  const notion = getClient();
-  const res: Obj = await call(() =>
-    notion.blocks.children.list({
-      block_id: id,
-      page_size: Math.min(limit, 100),
-    }),
-  );
+  const res: Obj = await ntnApi(`v1/blocks/${id}/children`, {
+    query: { page_size: Math.min(limit, 100) },
+  });
   const blocks = (res.results ?? []).slice(0, limit).map((b: Obj) => ({
     id: b.id,
     type: b.type,
@@ -74,7 +70,6 @@ async function blockDelete(args: string[]) {
   if (!id)
     throw usage("Missing block id", "Run `notion-axi block delete <block_id>`");
 
-  const notion = getClient();
-  await call(() => notion.blocks.delete({ block_id: id }));
+  await ntnApi(`v1/blocks/${id}`, { method: "DELETE" });
   return { deleted: id, result: "block trashed" };
 }

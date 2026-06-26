@@ -1,19 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { searchCommand } from "../src/commands/search.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
+import { apiCall } from "./support.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn() };
-});
-
+const api = vi.mocked(ntnApi);
 function setSearch(result: unknown) {
-  const search = vi.fn().mockResolvedValue(result);
-  vi.mocked(notion.getClient).mockReturnValue({ search } as never);
-  return search;
+  api.mockResolvedValue(result as never);
 }
-
 afterEach(() => vi.clearAllMocks());
 
 const page = (id: string) => ({
@@ -38,7 +35,6 @@ describe("searchCommand", () => {
       { id: "d1", title: "d1", type: "database", edited: "2026-06-21" },
     ]);
     expect(out.count).toBe(2);
-    // has_more false → no "raise the cap" hint
     expect(out.help.some((h: string) => h.includes("--limit"))).toBe(false);
   });
 
@@ -49,20 +45,18 @@ describe("searchCommand", () => {
   });
 
   it("passes a page type filter", async () => {
-    const search = setSearch({ results: [], has_more: false });
+    setSearch({ results: [], has_more: false });
     await searchCommand(["x", "--type", "page"]);
-    expect(search.mock.calls[0][0].filter).toEqual({
-      property: "object",
-      value: "page",
+    expect(apiCall(api, "v1/search")?.[1].body).toMatchObject({
+      filter: { property: "object", value: "page" },
     });
   });
 
   it("passes a database type filter via the db alias", async () => {
-    const search = setSearch({ results: [], has_more: false });
+    setSearch({ results: [], has_more: false });
     await searchCommand(["x", "--type", "db"]);
-    expect(search.mock.calls[0][0].filter).toEqual({
-      property: "object",
-      value: "data_source",
+    expect(apiCall(api, "v1/search")?.[1].body).toMatchObject({
+      filter: { property: "object", value: "data_source" },
     });
   });
 
@@ -83,6 +77,6 @@ describe("searchCommand", () => {
   it("gives a definitive empty state without a query", async () => {
     setSearch({ results: undefined, has_more: undefined });
     const out: any = await searchCommand([]);
-    expect(out.result).toContain("0 items shared");
+    expect(out.result).toContain("0 items in this workspace");
   });
 });

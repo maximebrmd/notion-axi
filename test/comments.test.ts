@@ -1,22 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { commentsCommand } from "../src/commands/comments.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
+import { apiCall } from "./support.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn() };
-});
-
-function setClient(client: Record<string, unknown>) {
-  vi.mocked(notion.getClient).mockReturnValue(client as never);
-}
-
+const api = vi.mocked(ntnApi);
 afterEach(() => vi.clearAllMocks());
 
 describe("comments routing", () => {
   it("throws on a missing or unknown subcommand", async () => {
-    setClient({});
     await expect(commentsCommand([])).rejects.toBeInstanceOf(AxiError);
     await expect(commentsCommand(["frob"])).rejects.toBeInstanceOf(AxiError);
   });
@@ -24,26 +19,22 @@ describe("comments routing", () => {
 
 describe("comments list", () => {
   it("lists comments with author fallbacks", async () => {
-    setClient({
-      comments: {
-        list: vi.fn().mockResolvedValue({
-          results: [
-            {
-              id: "c1",
-              created_by: { name: "Ann" },
-              created_time: "2026-06-20T0:0:0Z",
-              rich_text: [{ plain_text: "hi" }],
-            },
-            {
-              id: "c2",
-              created_by: { id: "u2" },
-              created_time: "2026-06-19T0:0:0Z",
-              rich_text: [],
-            },
-            { id: "c3", created_time: "2026-06-18T0:0:0Z", rich_text: [] },
-          ],
-        }),
-      },
+    api.mockResolvedValue({
+      results: [
+        {
+          id: "c1",
+          created_by: { name: "Ann" },
+          created_time: "2026-06-20T0:0:0Z",
+          rich_text: [{ plain_text: "hi" }],
+        },
+        {
+          id: "c2",
+          created_by: { id: "u2" },
+          created_time: "2026-06-19T0:0:0Z",
+          rich_text: [],
+        },
+        { id: "c3", created_time: "2026-06-18T0:0:0Z", rich_text: [] },
+      ],
     });
     const out: any = await commentsCommand(["list", "p1"]);
     expect(out.comments[0]).toEqual({
@@ -52,49 +43,47 @@ describe("comments list", () => {
       created: "2026-06-20",
       text: "hi",
     });
-    expect(out.comments[1].author).toBe("u2"); // name absent → id
-    expect(out.comments[2].author).toBe(""); // no created_by → ""
+    expect(out.comments[1].author).toBe("u2");
+    expect(out.comments[2].author).toBe("");
   });
 
   it("surfaces has_more and suggests raising the cap", async () => {
-    const list = vi.fn().mockResolvedValue({
+    api.mockResolvedValue({
       results: [{ id: "c1", created_time: "2026-06-20T0:0:0Z", rich_text: [] }],
       has_more: true,
     });
-    setClient({ comments: { list } });
     const out: any = await commentsCommand(["list", "p1", "--limit", "1"]);
-    expect(list.mock.calls[0][0].page_size).toBe(1);
+    expect(apiCall(api, "v1/comments", "GET")?.[1].query).toMatchObject({
+      block_id: "p1",
+      page_size: 1,
+    });
     expect(out.has_more).toBe(true);
     expect(out.help).toContain("Raise the cap with `--limit <n>` for more");
   });
 
   it("gives a definitive empty state", async () => {
-    setClient({ comments: { list: vi.fn().mockResolvedValue({}) } });
+    api.mockResolvedValue({});
     expect((await commentsCommand(["list", "p1"])).result).toContain(
       "0 comments",
     );
   });
 
   it("requires an id", async () => {
-    setClient({});
     await expect(commentsCommand(["list"])).rejects.toBeInstanceOf(AxiError);
   });
 });
 
 describe("comments add", () => {
   it("adds a comment to a page", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "c9" });
-    setClient({ comments: { create } });
+    api.mockResolvedValue({ id: "c9" });
     const out: any = await commentsCommand(["add", "p1", "looks", "good"]);
-    expect(create.mock.calls[0][0].parent).toEqual({ page_id: "p1" });
-    expect(create.mock.calls[0][0].rich_text[0].text.content).toBe(
-      "looks good",
-    );
+    const body: any = apiCall(api, "v1/comments", "POST")?.[1].body;
+    expect(body.parent).toEqual({ page_id: "p1" });
+    expect(body.rich_text[0].text.content).toBe("looks good");
     expect(out.added).toBe("c9");
   });
 
   it("requires an id and text", async () => {
-    setClient({});
     await expect(commentsCommand(["add", "p1"])).rejects.toBeInstanceOf(
       AxiError,
     );
@@ -104,15 +93,13 @@ describe("comments add", () => {
 
 describe("comments delete", () => {
   it("deletes a comment", async () => {
-    const del = vi.fn().mockResolvedValue({});
-    setClient({ comments: { delete: del } });
+    api.mockResolvedValue({});
     const out: any = await commentsCommand(["delete", "c1"]);
-    expect(del.mock.calls[0][0]).toEqual({ comment_id: "c1" });
+    expect(apiCall(api, "v1/comments/c1", "DELETE")).toBeDefined();
     expect(out.deleted).toBe("c1");
   });
 
   it("requires a comment id", async () => {
-    setClient({});
     await expect(commentsCommand(["delete"])).rejects.toBeInstanceOf(AxiError);
   });
 });

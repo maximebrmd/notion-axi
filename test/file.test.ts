@@ -2,18 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { fileCommand } from "../src/commands/file.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
+import { apiCall, routeNtn } from "./support.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn() };
-});
-
-function setClient(client: Record<string, unknown>) {
-  vi.mocked(notion.getClient).mockReturnValue(client as never);
-}
+const api = vi.mocked(ntnApi);
 
 function tmpFile(name: string, contents = "hello") {
   const dir = mkdtempSync(join(tmpdir(), "naxi-"));
@@ -26,7 +23,6 @@ afterEach(() => vi.clearAllMocks());
 
 describe("file routing", () => {
   it("throws on a missing or unknown subcommand", async () => {
-    setClient({});
     await expect(fileCommand([])).rejects.toBeInstanceOf(AxiError);
     await expect(fileCommand(["frob"])).rejects.toBeInstanceOf(AxiError);
   });
@@ -35,19 +31,16 @@ describe("file routing", () => {
 describe("file upload", () => {
   it("creates an upload, sends the bytes, and reports the result", async () => {
     const { dir, path } = tmpFile("note.txt", "hello world");
-    const create = vi
-      .fn()
-      .mockResolvedValue({ id: "fu1", content_type: "text/plain" });
-    const send = vi.fn().mockResolvedValue({});
-    setClient({ fileUploads: { create, send } });
+    routeNtn(api, [
+      { path: "v1/file_uploads", method: "POST", res: { id: "fu1" } },
+      { path: /\/send$/, method: "POST", res: {} },
+    ]);
     const out: any = await fileCommand(["upload", path]);
-    expect(create.mock.calls[0][0]).toMatchObject({
+    expect(apiCall(api, "v1/file_uploads", "POST")?.[1].body).toMatchObject({
       mode: "single_part",
       filename: "note.txt",
     });
-    expect(send.mock.calls[0][0].file_upload_id).toBe("fu1");
-    // the sent blob carries the content type Notion recorded at create
-    expect(send.mock.calls[0][0].file.data.type).toBe("text/plain");
+    expect(apiCall(api, /\/send$/, "POST")?.[1].file).toBe(path);
     expect(out).toMatchObject({
       uploaded: "fu1",
       filename: "note.txt",
@@ -58,16 +51,14 @@ describe("file upload", () => {
 
   it("attaches the upload as a file block when --attach is given", async () => {
     const { dir, path } = tmpFile("d.png");
-    const append = vi.fn().mockResolvedValue({});
-    setClient({
-      fileUploads: {
-        create: vi.fn().mockResolvedValue({ id: "fu2" }),
-        send: vi.fn().mockResolvedValue({}),
-      },
-      blocks: { children: { append } },
-    });
+    routeNtn(api, [
+      { path: "v1/file_uploads", method: "POST", res: { id: "fu2" } },
+      { path: /\/send$/, method: "POST", res: {} },
+      { path: /\/children$/, method: "PATCH", res: {} },
+    ]);
     const out: any = await fileCommand(["upload", path, "--attach", "pg1"]);
-    const block = append.mock.calls[0][0].children[0];
+    const block: any = apiCall(api, /\/children$/, "PATCH")?.[1].body
+      .children[0];
     expect(block).toEqual({
       type: "file",
       file: { type: "file_upload", file_upload: { id: "fu2" } },
@@ -78,16 +69,19 @@ describe("file upload", () => {
 
   it("honours --name override", async () => {
     const { dir, path } = tmpFile("orig.txt");
-    const create = vi.fn().mockResolvedValue({ id: "fu3" });
-    setClient({ fileUploads: { create, send: vi.fn().mockResolvedValue({}) } });
+    routeNtn(api, [
+      { path: "v1/file_uploads", method: "POST", res: { id: "fu3" } },
+      { path: /\/send$/, method: "POST", res: {} },
+    ]);
     await fileCommand(["upload", path, "--name", "renamed.txt"]);
-    expect(create.mock.calls[0][0].filename).toBe("renamed.txt");
+    expect(apiCall(api, "v1/file_uploads", "POST")?.[1].body).toMatchObject({
+      filename: "renamed.txt",
+    });
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("rejects --attach and --name without a value", async () => {
     const { dir, path } = tmpFile("d.png");
-    setClient({});
     await expect(
       fileCommand(["upload", path, "--attach"]),
     ).rejects.toBeInstanceOf(AxiError);
@@ -98,7 +92,6 @@ describe("file upload", () => {
   });
 
   it("requires a path and rejects an unreadable file", async () => {
-    setClient({});
     await expect(fileCommand(["upload"])).rejects.toBeInstanceOf(AxiError);
     await expect(
       fileCommand(["upload", "/no/such/file.bin"]),

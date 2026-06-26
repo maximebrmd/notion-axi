@@ -4,13 +4,13 @@ Guidance for AI agents working **on** this repository (not for using the CLI —
 
 ## What this is
 
-`notion-axi` is an [AXI](https://github.com/kunchenguid/axi) (Agent eXperience Interface): a CLI built for agents, emitting token-efficient [TOON](https://toonformat.dev/) on stdout. It wraps `@notionhq/client` (Notion API `2025-09-03` — databases expose **data sources**; `pages.retrieveMarkdown`/`updateMarkdown`; `dataSources.query`). Auth is `NOTION_TOKEN` (a Personal Access Token or internal integration secret).
+`notion-axi` is an [AXI](https://github.com/kunchenguid/axi) (Agent eXperience Interface): a CLI built for agents, emitting token-efficient [TOON](https://toonformat.dev/) on stdout. It shells out to the official **Notion CLI (`ntn`)** for every API call (`ntn api <path> -X <method> -d <json>`), then formats the raw JSON into TOON. `ntn` owns auth (`ntn login` stores a workspace token in the OS keychain; or `NOTION_API_TOKEN` for headless), so notion-axi never handles a token. This mirrors how `gh-axi` wraps the `gh` binary. The Notion API is `2025-09-03` — databases expose **data sources**; page bodies via `GET/PATCH /v1/pages/{id}/markdown`; rows via `POST /v1/data_sources/{id}/query`.
 
 ## Layout
 
 - `bin/notion-axi.ts` — thin entry → `src/cli.ts` `main()`.
 - `src/cli.ts` — `DESCRIPTION`, `TOP_HELP`, command + help maps, version.
-- `src/{args,format,notion,errors}.ts` — shared helpers (arg parsing, Notion-object formatting, client + error translation).
+- `src/{args,format,ntn,errors}.ts` — shared helpers (arg parsing, Notion-object formatting, `ntn` exec + error translation).
 - `src/commands/*.ts` — one file per command, each exporting its handler and a `*_HELP` string.
 - `src/skill.ts` + `scripts/build-skill.ts` — generate `skills/notion-axi/SKILL.md` (do **not** hand-edit it).
 

@@ -1,42 +1,51 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+
 import { homeCommand } from "../src/commands/home.js";
-import * as notion from "../src/notion.js";
+import { ntnApi } from "../src/ntn.js";
+import { AxiError } from "../src/errors.js";
 
-vi.mock("../src/notion.js", async (orig) => {
-  const actual = await orig<typeof import("../src/notion.js")>();
-  return { ...actual, getClient: vi.fn(), hasToken: vi.fn() };
-});
-
+const api = vi.mocked(ntnApi);
 afterEach(() => vi.clearAllMocks());
 
 describe("homeCommand", () => {
-  it("returns setup guidance when no token is present", async () => {
-    vi.mocked(notion.hasToken).mockReturnValue(false);
+  it("returns install guidance when ntn is missing", async () => {
+    api.mockRejectedValue(new AxiError("nope", "NTN_NOT_INSTALLED"));
     const out: any = await homeCommand();
-    expect(out.status).toContain("NOTION_TOKEN is not set");
-    expect(out.setup.length).toBe(3);
+    expect(out.status).toContain("not installed");
+    expect(out.setup.length).toBe(2);
+  });
+
+  it("returns login guidance when not authenticated", async () => {
+    api.mockRejectedValue(new AxiError("nope", "AUTH_REQUIRED"));
+    const out: any = await homeCommand();
+    expect(out.status).toContain("not logged in");
+    expect(out.setup.length).toBe(2);
+  });
+
+  it("rethrows other errors", async () => {
+    api.mockRejectedValue(new AxiError("boom", "OBJECT_NOT_FOUND"));
+    await expect(homeCommand()).rejects.toBeInstanceOf(AxiError);
   });
 
   it("lists recently edited items when authenticated", async () => {
-    vi.mocked(notion.hasToken).mockReturnValue(true);
-    vi.mocked(notion.getClient).mockReturnValue({
-      search: vi.fn().mockResolvedValue({
-        results: [
-          {
-            id: "p1",
-            object: "page",
-            last_edited_time: "2026-06-20T0:0:0Z",
-            properties: { N: { type: "title", title: [{ plain_text: "Pg" }] } },
-          },
-          {
-            id: "d1",
-            object: "data_source",
-            last_edited_time: "2026-06-19T0:0:0Z",
-            title: [{ plain_text: "DB" }],
-          },
-        ],
-      }),
-    } as never);
+    api.mockResolvedValue({
+      results: [
+        {
+          id: "p1",
+          object: "page",
+          last_edited_time: "2026-06-20T0:0:0Z",
+          properties: { N: { type: "title", title: [{ plain_text: "Pg" }] } },
+        },
+        {
+          id: "d1",
+          object: "data_source",
+          last_edited_time: "2026-06-19T0:0:0Z",
+          title: [{ plain_text: "DB" }],
+        },
+      ],
+    });
     const out: any = await homeCommand();
     expect(out.recent).toEqual([
       { id: "p1", title: "Pg", type: "page", edited: "2026-06-20" },
@@ -45,13 +54,10 @@ describe("homeCommand", () => {
     expect(out.count).toBe(2);
   });
 
-  it("gives a definitive empty state when nothing is shared", async () => {
-    vi.mocked(notion.hasToken).mockReturnValue(true);
-    vi.mocked(notion.getClient).mockReturnValue({
-      search: vi.fn().mockResolvedValue({ results: [] }),
-    } as never);
+  it("gives a definitive empty state when the workspace is empty", async () => {
+    api.mockResolvedValue({});
     const out: any = await homeCommand();
     expect(out.recent).toEqual([]);
-    expect(out.result).toContain("Nothing shared");
+    expect(out.result).toContain("Nothing in this workspace");
   });
 });

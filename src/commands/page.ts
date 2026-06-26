@@ -10,7 +10,7 @@ import {
   type Obj,
   type Truncated,
 } from "../format.js";
-import { call, getClient } from "../notion.js";
+import { ntnApi } from "../ntn.js";
 
 export const PAGE_HELP = `usage: notion-axi page <view|create|update|archive|move> ...
 
@@ -126,11 +126,8 @@ async function pageView(args: string[]) {
   if (!id) throw usage("Missing page id", "Run `notion-axi page view <id>`");
   const full = flags.full === true;
 
-  const notion = getClient();
-  const page: Obj = await call(() => notion.pages.retrieve({ page_id: id }));
-  const md: Obj = await call(() =>
-    notion.pages.retrieveMarkdown({ page_id: id }),
-  );
+  const page: Obj = await ntnApi(`v1/pages/${id}`);
+  const md: Obj = await ntnApi(`v1/pages/${id}/markdown`);
 
   const properties = Object.entries(page.properties ?? {})
     .map(([name, prop]) => ({
@@ -183,14 +180,11 @@ async function pageCreate(args: string[]) {
     );
   const sets = parseSets(collectFlag(args, "set"));
 
-  const notion = getClient();
   let parentRef: Obj;
   let properties: Obj;
 
   if (flags.db === true) {
-    const ds: Obj = await call(() =>
-      notion.dataSources.retrieve({ data_source_id: parent }),
-    );
+    const ds: Obj = await ntnApi(`v1/data_sources/${parent}`);
     const titleProp =
       Object.keys(ds.properties ?? {}).find(
         (k) => ds.properties[k]?.type === "title",
@@ -211,22 +205,20 @@ async function pageCreate(args: string[]) {
     properties = { title: { title: [{ text: { content: title } }] } };
   }
 
-  const page: Obj = await call(() =>
-    notion.pages.create({
-      parent: parentRef as any,
-      properties: properties as any,
-    }),
-  );
+  const page: Obj = await ntnApi("v1/pages", {
+    method: "POST",
+    body: { parent: parentRef, properties },
+  });
 
   const content = contentFrom(flags, "content");
   if (content !== undefined) {
-    await call(() =>
-      notion.pages.updateMarkdown({
-        page_id: page.id,
+    await ntnApi(`v1/pages/${page.id}/markdown`, {
+      method: "PATCH",
+      body: {
         type: "insert_content",
         insert_content: { content, position: { type: "end" } },
-      }),
-    );
+      },
+    });
   }
 
   return {
@@ -261,35 +253,32 @@ async function pageUpdate(args: string[]) {
     );
   }
 
-  const notion = getClient();
   const out: Obj = { updated: id };
 
   if (sets.length > 0) {
-    const page: Obj = await call(() => notion.pages.retrieve({ page_id: id }));
+    const page: Obj = await ntnApi(`v1/pages/${id}`);
     const properties = buildProperties(sets, page.properties ?? {});
-    await call(() =>
-      notion.pages.update({ page_id: id, properties: properties as any }),
-    );
+    await ntnApi(`v1/pages/${id}`, { method: "PATCH", body: { properties } });
     out.properties_set = sets.map(([name]) => name);
   }
 
   if (replace !== undefined) {
-    await call(() =>
-      notion.pages.updateMarkdown({
-        page_id: id,
+    await ntnApi(`v1/pages/${id}/markdown`, {
+      method: "PATCH",
+      body: {
         type: "replace_content",
         replace_content: { new_str: replace, allow_deleting_content: true },
-      }),
-    );
+      },
+    });
     out.body = "replaced";
   } else if (append !== undefined) {
-    await call(() =>
-      notion.pages.updateMarkdown({
-        page_id: id,
+    await ntnApi(`v1/pages/${id}/markdown`, {
+      method: "PATCH",
+      body: {
         type: "insert_content",
         insert_content: { content: append, position: { type: "end" } },
-      }),
-    );
+      },
+    });
     out.body = "appended";
   }
 
@@ -304,8 +293,7 @@ async function pageArchive(args: string[]) {
   const restore = flags.restore === true;
   const target = !restore; // archive → true (in trash); restore → false
 
-  const notion = getClient();
-  const page: Obj = await call(() => notion.pages.retrieve({ page_id: id }));
+  const page: Obj = await ntnApi(`v1/pages/${id}`);
   const trashed = page.in_trash ?? page.archived ?? false;
 
   if (trashed === target) {
@@ -315,9 +303,10 @@ async function pageArchive(args: string[]) {
     };
   }
 
-  await call(() =>
-    notion.pages.update({ page_id: id, in_trash: target } as any),
-  );
+  await ntnApi(`v1/pages/${id}`, {
+    method: "PATCH",
+    body: { in_trash: target },
+  });
 
   return {
     page: id,
@@ -346,8 +335,7 @@ async function pageMove(args: string[]) {
   }
   const parent = flags.db === true ? { data_source_id: to } : { page_id: to };
 
-  const notion = getClient();
-  await call(() => notion.pages.move({ page_id: id, parent } as any));
+  await ntnApi(`v1/pages/${id}/move`, { method: "POST", body: { parent } });
   return {
     moved: id,
     to,
