@@ -220,7 +220,7 @@ describe("buildPropertyValue", () => {
 
 describe("buildPropertySchema", () => {
   it("builds settable property type configs", () => {
-    expect(buildPropertySchema("status")).toEqual({ status: {} });
+    expect(buildPropertySchema("multi_select")).toEqual({ multi_select: {} });
     expect(buildPropertySchema("select")).toEqual({ select: {} });
     expect(buildPropertySchema("title")).toEqual({ title: {} });
     expect(buildPropertySchema("date")).toEqual({ date: {} });
@@ -228,5 +228,8 @@ describe("buildPropertySchema", () => {
   it("rejects computed/read-only types", () => {
     expect(() => buildPropertySchema("formula")).toThrow(AxiError);
     expect(() => buildPropertySchema("rollup")).toThrow(AxiError);
+  });
+  it("rejects status (Notion API cannot create it)", () => {
+    expect(() => buildPropertySchema("status")).toThrow(AxiError);
   });
 });

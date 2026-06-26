@@ -230,10 +230,10 @@ describe("db create", () => {
       "--title",
       "Tasks",
       "--prop",
-      "Status:status",
+      "Stage:select",
     ]);
     const props = create.mock.calls[0][0].initial_data_source.properties;
-    expect(props.Status).toEqual({ status: {} });
+    expect(props.Stage).toEqual({ select: {} });
     expect(props.Name).toEqual({ title: {} });
     expect(out.created).toBe("db1");
     expect(out.data_source).toBe("ds1");

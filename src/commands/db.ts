@@ -22,18 +22,18 @@ subcommands:
 
   create --parent <page_id> --title <name> [--prop Name:type ...]
       Create a database under a page. --prop is repeatable (e.g. --prop
-      Status:status --prop Due:date); a title property is added if none given.
+      Stage:select --prop Due:date); a title property is added if none given.
 
   edit <id> [--add Name:type ...] [--remove Name ...] [--source <id>]
       Add or remove data-source properties. Both flags are repeatable.
 
-Property types: title, rich_text, number, select, multi_select, status, date,
+Property types: title, rich_text, number, select, multi_select, date,
 people, files, checkbox, url, email, phone_number.
 
 examples:
   notion-axi db view 1f0a...
   notion-axi db query 1f0a... --fields Stage,Company
-  notion-axi db create --parent 24f1... --title Tasks --prop Status:status --prop Due:date
+  notion-axi db create --parent 24f1... --title Tasks --prop Stage:select --prop Due:date
   notion-axi db edit 1f0a... --add Priority:select --remove OldField
 `;
 
@@ -63,10 +63,10 @@ export async function dbCommand(args: string[]) {
 }
 
 /** Parse `Name:type` entries into [name, type] pairs. */
-function parseProps(entries: string[]): Array<[string, string]> {
+function parseProps(entries: string[], flag: string): Array<[string, string]> {
   return entries.map((e) => {
     const i = e.indexOf(":");
-    if (i < 0) throw usage(`--prop must be Name:type (got "${e}")`);
+    if (i < 0) throw usage(`--${flag} must be Name:type (got "${e}")`);
     return [e.slice(0, i).trim(), e.slice(i + 1).trim()];
   });
 }
@@ -231,7 +231,7 @@ async function dbCreate(args: string[]) {
 
   const properties: Obj = {};
   let hasTitle = false;
-  for (const [name, type] of parseProps(collectFlag(args, "prop"))) {
+  for (const [name, type] of parseProps(collectFlag(args, "prop"), "prop")) {
     properties[name] = buildPropertySchema(type);
     if (type === "title") hasTitle = true;
   }
@@ -268,7 +268,7 @@ async function dbEdit(args: string[]) {
     );
   }
   const source = strFlag(flags.source);
-  const adds = parseProps(collectFlag(args, "add"));
+  const adds = parseProps(collectFlag(args, "add"), "add");
   const removes = collectFlag(args, "remove");
   if (adds.length === 0 && removes.length === 0) {
     throw usage(
