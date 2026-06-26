@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.2.0...notion-axi-v0.3.0) (2026-06-26)
+
+
+### Features
+
+* **commands:** add database create/edit and page move ([#11](https://github.com/maximebrmd/notion-axi/issues/11)) ([5f0a9f2](https://github.com/maximebrmd/notion-axi/commit/5f0a9f2f88a2f0ae4700acf5fd46658093f46253))
+
 ## [0.2.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v0.1.1...notion-axi-v0.2.0) (2026-06-26)
 
 
