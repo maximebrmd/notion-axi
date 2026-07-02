@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v2.0.0...notion-axi-v2.1.0) (2026-07-02)
+
+
+### Features
+
+* **db:** add server-side filter, sort, and cursor paging to db query ([#22](https://github.com/maximebrmd/notion-axi/issues/22)) ([2d4bdaf](https://github.com/maximebrmd/notion-axi/commit/2d4bdafcc3c3e6925a7c4bd778e865f39c11a01a))
+
 ## [2.0.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v1.0.0...notion-axi-v2.0.0) (2026-06-26)
 
 
