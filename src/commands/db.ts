@@ -15,9 +15,22 @@ subcommands:
   view <id> [--source <data_source_id>]
       List the database's data sources and property schema.
 
-  query <id> [--limit <n>] [--full] [--fields <list>] [--source <data_source_id>]
+  query <id> [--limit <n>] [--full] [--fields <list>] [--source <id>]
+            [--filter <json>] [--where Name=value ...] [--sort Field:asc|desc ...]
+            [--cursor <c>]
       List rows as a table. Shows the title + first 3 columns by default;
       --full includes every column, or --fields <a,b> picks specific ones.
+      Server-side selection (narrows before rows are fetched):
+        --filter <json>   Raw Notion filter object, forwarded verbatim.
+        --where Name=val  Sugar compiled from the schema (repeatable, AND-ed):
+                          select/status/url/email/phone → equals, number →
+                          equals, checkbox → bool equals, date → equals,
+                          title/rich_text/multi_select/people/relation → contains.
+        --sort Field:dir  Sort by a property (repeatable). dir is asc (default)
+                          or desc; created_time/last_edited_time sort by timestamp.
+        --cursor <c>      Resume paging from a prior response's next_cursor.
+      --filter and --where are mutually exclusive; --filter wins if you need
+      raw control. When has_more is true the response carries next_cursor.
 
   create --parent <page_id> --title <name> [--prop Name:type ...]
       Create a database under a page. --prop is repeatable (e.g. --prop
@@ -32,6 +45,9 @@ people, files, checkbox, url, email, phone_number.
 examples:
   notion-axi db view 1f0a...
   notion-axi db query 1f0a... --fields Stage,Company
+  notion-axi db query 1f0a... --where Status=Todo --sort Due:asc
+  notion-axi db query 1f0a... --filter '{"property":"Done","checkbox":{"equals":false}}'
+  notion-axi db query 1f0a... --cursor <next_cursor>   # continue paging
   notion-axi db create --parent 24f1... --title Tasks --prop Stage:select --prop Due:date
   notion-axi db edit 1f0a... --add Priority:select --remove OldField
 `;
@@ -68,6 +84,96 @@ function parseProps(entries: string[], flag: string): Array<[string, string]> {
     if (i < 0) throw usage(`--${flag} must be Name:type (got "${e}")`);
     return [e.slice(0, i).trim(), e.slice(i + 1).trim()];
   });
+}
+
+/** Compile repeatable `--sort Field:asc|desc` entries into the API `sorts`
+ * array. `created_time`/`last_edited_time` become timestamp sorts; everything
+ * else sorts by property. Direction defaults to ascending. */
+function buildSorts(entries: string[]): Obj[] {
+  return entries.map((e) => {
+    const i = e.lastIndexOf(":");
+    const field = (i < 0 ? e : e.slice(0, i)).trim();
+    const raw = (i < 0 ? "" : e.slice(i + 1)).trim().toLowerCase();
+    if (!field) throw usage(`--sort needs a field (got "${e}")`);
+    let direction: string;
+    if (raw === "" || raw === "asc" || raw === "ascending") {
+      direction = "ascending";
+    } else if (raw === "desc" || raw === "descending") {
+      direction = "descending";
+    } else {
+      throw usage(
+        `--sort direction must be asc or desc (got "${raw}")`,
+        `e.g. --sort ${field}:desc`,
+      );
+    }
+    return field === "created_time" || field === "last_edited_time"
+      ? { timestamp: field, direction }
+      : { property: field, direction };
+  });
+}
+
+/** Build a single-property filter condition for `--where Name=value`, typed by
+ * the property's schema. Types that have no sensible `=` mapping are rejected
+ * with a pointer to raw `--filter`. */
+function whereCondition(type: string, value: string, name: string): Obj {
+  switch (type) {
+    case "title":
+    case "rich_text":
+    case "multi_select":
+    case "people":
+    case "relation":
+      return { property: name, [type]: { contains: value } };
+    case "select":
+    case "status":
+    case "url":
+    case "email":
+    case "phone_number":
+    case "date":
+      return { property: name, [type]: { equals: value } };
+    case "number": {
+      const n = Number(value);
+      if (Number.isNaN(n))
+        throw usage(`--where ${name}: "${value}" is not a number`);
+      return { property: name, number: { equals: n } };
+    }
+    case "checkbox":
+      return {
+        property: name,
+        checkbox: { equals: /^(true|yes|1|done|checked)$/i.test(value) },
+      };
+    default:
+      throw usage(
+        `--where can't filter on property type "${type}" (${name})`,
+        "Use --filter <json> for a raw Notion filter condition",
+      );
+  }
+}
+
+/** Compile repeatable `--where Name=value` entries into a Notion `filter`,
+ * AND-ing multiple clauses. Unknown property names are rejected with the valid
+ * list. */
+function buildWhere(entries: string[], schema: Obj, id: string): Obj {
+  const clauses = entries.map((e) => {
+    const i = e.indexOf("=");
+    if (i < 0) {
+      throw usage(
+        `--where must be Name=value (got "${e}")`,
+        `Run \`notion-axi db query ${id} --where Status=Todo\``,
+      );
+    }
+    const name = e.slice(0, i).trim();
+    const value = e.slice(i + 1).trim();
+    const type = schema[name]?.type;
+    if (!type) {
+      throw usage(
+        `Unknown property: ${name}`,
+        `Valid names: ${Object.keys(schema).join(", ")}`,
+        `Run \`notion-axi db view ${id}\` to see valid property names`,
+      );
+    }
+    return whereCondition(type, value, name);
+  });
+  return clauses.length === 1 ? clauses[0] : { and: clauses };
 }
 
 interface Resolved {
@@ -168,9 +274,44 @@ async function dbQuery(args: string[]) {
       ? others
       : others.slice(0, 3);
 
+  const body: Obj = { page_size: Math.min(limit, 100) };
+  const cursor = strFlag(flags.cursor);
+  if (cursor) body.start_cursor = cursor;
+
+  const whereEntries = collectFlag(args, "where");
+  if (flags.filter !== undefined) {
+    if (whereEntries.length) {
+      throw usage(
+        "Use either --filter or --where, not both",
+        "--filter takes a raw Notion filter object; --where builds one from Name=value pairs",
+      );
+    }
+    const raw = strFlag(flags.filter);
+    if (raw === undefined) {
+      throw usage(
+        "--filter needs a JSON value",
+        `e.g. --filter '{"property":"Status","select":{"equals":"Todo"}}'`,
+      );
+    }
+    try {
+      body.filter = JSON.parse(raw);
+    } catch {
+      throw usage(
+        `--filter is not valid JSON: ${raw.slice(0, 80)}`,
+        `Pass a raw Notion filter object, e.g. --filter '{"property":"Status","select":{"equals":"Todo"}}'`,
+        `Run \`notion-axi db query ${id} --help\``,
+      );
+    }
+  } else if (whereEntries.length) {
+    body.filter = buildWhere(whereEntries, ds.properties ?? {}, id);
+  }
+
+  const sortEntries = collectFlag(args, "sort");
+  if (sortEntries.length) body.sorts = buildSorts(sortEntries);
+
   const res: Obj = await ntnApi(`v1/data_sources/${r.dsId}/query`, {
     method: "POST",
-    body: { page_size: Math.min(limit, 100) },
+    body,
   });
   const pages = (res.results ?? []).slice(0, limit);
 
@@ -189,17 +330,23 @@ async function dbQuery(args: string[]) {
     };
   }
 
+  const hasMore = res.has_more ?? false;
+  const nextCursor = hasMore ? (res.next_cursor ?? null) : null;
   return {
     rows,
     count: rows.length,
-    has_more: res.has_more ?? false,
+    has_more: hasMore,
+    ...(nextCursor ? { next_cursor: nextCursor } : {}),
     columns_shown: (titleName ? 1 : 0) + cols.length,
     help: [
       "Run `notion-axi page view <id>` to open a row",
       !full && requested.length === 0 && others.length > cols.length
         ? `Run \`notion-axi db query ${id} --full\` to see all ${others.length} columns`
         : undefined,
-      res.has_more && limit < 100
+      nextCursor
+        ? `Fetch the next page with \`notion-axi db query ${id} --cursor ${nextCursor}\``
+        : undefined,
+      hasMore && limit < 100
         ? "Raise the cap with `--limit <n>` for more"
         : undefined,
     ].filter(Boolean),

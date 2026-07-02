@@ -194,6 +194,180 @@ describe("db query", () => {
     expect(out.result).toContain("0 rows");
   });
 
+  const routeQuery = (res: unknown, dbFirst = true) =>
+    routeNtn(api, [
+      ...(dbFirst
+        ? [
+            {
+              path: /^v1\/databases\//,
+              res: { id: "db1", data_sources: [{ id: "ds1", name: "d" }] },
+            } as const,
+          ]
+        : []),
+      { path: /^v1\/data_sources\/[^/]+$/, res: { properties: schema } },
+      { path: /\/query$/, method: "POST", res },
+    ]);
+
+  it("forwards a raw --filter JSON verbatim", async () => {
+    routeQuery({ results: [row("r1")], has_more: false });
+    await dbCommand([
+      "query",
+      "db1",
+      "--filter",
+      '{"property":"C","select":{"equals":"c"}}',
+    ]);
+    const body: any = apiCall(api, /\/query$/, "POST")?.[1].body;
+    expect(body.filter).toEqual({ property: "C", select: { equals: "c" } });
+  });
+
+  it("exits 2 with help on invalid --filter JSON", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--filter", "{not json"]),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("rejects --filter with no value", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--filter"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("compiles --where into a typed filter from the schema", async () => {
+    routeQuery({ results: [row("r1")], has_more: false });
+    await dbCommand([
+      "query",
+      "db1",
+      "--where",
+      "C=Todo",
+      "--where",
+      "B=5",
+      "--where",
+      "D=yes",
+      "--where",
+      "A=hello",
+    ]);
+    const body: any = apiCall(api, /\/query$/, "POST")?.[1].body;
+    expect(body.filter).toEqual({
+      and: [
+        { property: "C", select: { equals: "Todo" } },
+        { property: "B", number: { equals: 5 } },
+        { property: "D", checkbox: { equals: true } },
+        { property: "A", rich_text: { contains: "hello" } },
+      ],
+    });
+  });
+
+  it("emits a single --where clause without an and wrapper", async () => {
+    routeQuery({ results: [row("r1")], has_more: false });
+    await dbCommand(["query", "db1", "--where", "Name=Ship"]);
+    const body: any = apiCall(api, /\/query$/, "POST")?.[1].body;
+    expect(body.filter).toEqual({
+      property: "Name",
+      title: { contains: "Ship" },
+    });
+  });
+
+  it("exits 2 listing valid names for an unknown --where property", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--where", "Bogus=1"]),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("rejects a --where without an equals sign", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--where", "Cnoequals"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("rejects a non-numeric --where on a number property", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--where", "B=notanum"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("rejects --where on an unsupported property type", async () => {
+    routeNtn(api, [
+      {
+        path: /^v1\/data_sources\/[^/]+$/,
+        res: { properties: { F: { type: "formula" } } },
+      },
+    ]);
+    await expect(
+      dbCommand(["query", "ds1", "--source", "ds1", "--where", "F=x"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("rejects a --where when the data source exposes no properties", async () => {
+    routeNtn(api, [{ path: /^v1\/data_sources\/[^/]+$/, res: {} }]);
+    await expect(
+      dbCommand(["query", "ds1", "--source", "ds1", "--where", "C=Todo"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("rejects mixing --filter and --where", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--filter", "{}", "--where", "C=Todo"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("compiles --sort into property and timestamp sorts", async () => {
+    routeQuery({ results: [row("r1")], has_more: false });
+    await dbCommand([
+      "query",
+      "db1",
+      "--sort",
+      "B:desc",
+      "--sort",
+      "C",
+      "--sort",
+      "created_time:desc",
+    ]);
+    const body: any = apiCall(api, /\/query$/, "POST")?.[1].body;
+    expect(body.sorts).toEqual([
+      { property: "B", direction: "descending" },
+      { property: "C", direction: "ascending" },
+      { timestamp: "created_time", direction: "descending" },
+    ]);
+  });
+
+  it("rejects an invalid --sort direction", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--sort", "B:sideways"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("rejects a --sort with an empty field", async () => {
+    routeQuery({ results: [], has_more: false });
+    await expect(
+      dbCommand(["query", "db1", "--sort", ":asc"]),
+    ).rejects.toBeInstanceOf(AxiError);
+  });
+
+  it("passes --cursor as start_cursor and surfaces next_cursor", async () => {
+    routeQuery({ results: [row("r1")], has_more: true, next_cursor: "CUR2" });
+    const out: any = await dbCommand(["query", "db1", "--cursor", "CUR1"]);
+    const body: any = apiCall(api, /\/query$/, "POST")?.[1].body;
+    expect(body.start_cursor).toBe("CUR1");
+    expect(out.next_cursor).toBe("CUR2");
+    expect(out.help.some((h: string) => h.includes("--cursor CUR2"))).toBe(
+      true,
+    );
+  });
+
+  it("omits next_cursor when there are no more pages", async () => {
+    routeQuery({ results: [row("r1")], has_more: false, next_cursor: "X" });
+    const out: any = await dbCommand(["query", "db1"]);
+    expect(out.next_cursor).toBeUndefined();
+    expect(out.help.some((h: string) => h.includes("--cursor"))).toBe(false);
+  });
+
   it("handles a schema with no title property", async () => {
     routeNtn(api, [
       {

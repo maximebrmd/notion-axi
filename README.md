@@ -89,6 +89,9 @@ notion-axi page view <id> --full             # full body, no truncation
 notion-axi db view <id>                      # database data sources & schema
 notion-axi db query <id> --limit 50          # database rows as a table
 notion-axi db query <id> --fields Stage,Owner # pick specific columns
+notion-axi db query <id> --where Status=Todo --sort Due:asc  # filter + sort server-side
+notion-axi db query <id> --filter '{"property":"Done","checkbox":{"equals":false}}'
+notion-axi db query <id> --cursor <next_cursor>  # continue paging past has_more
 notion-axi page create --parent <id> --title "Meeting notes" --content "# Agenda"
 notion-axi page create --parent <id> --title "Spec" --content-file ./spec.md
 notion-axi page create --parent <id> --title "Ship v2" --db   # new row in a database
