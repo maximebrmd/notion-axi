@@ -29,8 +29,9 @@ subcommands:
         --sort Field:dir  Sort by a property (repeatable). dir is asc (default)
                           or desc; created_time/last_edited_time sort by timestamp.
         --cursor <c>      Resume paging from a prior response's next_cursor.
-      --filter and --where are mutually exclusive; --filter wins if you need
-      raw control. When has_more is true the response carries next_cursor.
+      --filter and --where are mutually exclusive (passing both exits 2); use
+      --filter when you need a raw filter condition. When has_more is true the
+      response carries next_cursor.
 
   create --parent <page_id> --title <name> [--prop Name:type ...]
       Create a database under a page. --prop is repeatable (e.g. --prop
