@@ -156,8 +156,8 @@ Workers use native `ntn workers` syntax for inspection, scaffolding, deployment,
 - Exit `0` success (including idempotent no-ops), `1` runtime/API error, `2` usage error.
 - Errors are structured: `error`, `code`, and a `help` list of fixes.
 
-See the [Notion CLI coverage audit](docs/notion-cli-audit.md) for existing coverage
-and prioritized additions from the official CLI.
+See the [baseline Notion CLI coverage audit](docs/notion-cli-audit.md) for the
+original comparison and recommendations.
 
 ## Benchmarks
 

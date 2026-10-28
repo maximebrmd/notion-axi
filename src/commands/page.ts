@@ -143,7 +143,8 @@ async function pageView(args: string[]) {
     body: view.text || "(no text content)",
   };
 
-  const partial = md.truncated === true || (md.unknown_block_ids?.length ?? 0) > 0;
+  const partial =
+    md.truncated === true || (md.unknown_block_ids?.length ?? 0) > 0;
   if (view.truncated || partial) {
     out.body_truncated = true;
     out.body_chars_shown = view.text.length;
