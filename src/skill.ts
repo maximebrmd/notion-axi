@@ -5,7 +5,7 @@
 export const SKILL_NAME = "notion-axi";
 
 export const SKILL_DESCRIPTION =
-  "Operate Notion through the notion-axi CLI — search; read, create, update, archive, and move pages; create and edit databases and query/set typed row properties; manage blocks, comments, and file uploads; or call any REST endpoint directly. " +
+  "Operate Notion through the notion-axi CLI — search; read, export, create, update, archive, and move pages; create and edit databases and query/set typed row properties; manage blocks, comments, file uploads, and Workers; discover or call any REST endpoint. " +
   "Use whenever a task touches Notion: finding pages or databases, reading or editing content, working with database rows, comments, files, or anything else in a Notion workspace.";
 
 export function createSkillMarkdown(): string {
@@ -45,23 +45,27 @@ Use notion-axi whenever a task touches Notion: searching for pages or databases;
 3. \`page view <id>\` reads properties and the markdown body (previewed to ~1500 chars; add \`--full\` for everything).
 4. \`db view <id>\` shows a database's schema; \`db query <id>\` lists rows (title + 3 columns; \`--full\` for all, \`--limit <n>\` for more). Narrow server-side with \`--where Name=value\` (repeatable, typed from the schema) or a raw \`--filter <json>\`, order with \`--sort Field:asc|desc\` (repeatable), and page with \`--cursor <c>\` (the response returns \`next_cursor\` when \`has_more\`). \`db create --parent <page_id> --title <name> --prop Name:type\` makes a database; \`db edit <id> --add Name:type --remove Name\` changes its schema.
 5. \`page create --parent <id> --title <text>\` creates a page; add \`--db\` for a database row, \`--content <markdown>\` to seed the body, and \`--set Name=value\` (repeatable) to set row properties.
-6. \`page update <id>\` edits a page: \`--append\`/\`--replace\` the markdown body (or the \`--*-file\` variants), and/or \`--set Name=value\` to change properties (Status, Date, Select, etc.).
+6. \`page update <id>\` edits a page: \`--append\`/\`--replace\` the markdown body (or the \`--*-file\` variants), and/or \`--set Name=value\` to change properties (Status, Date, Select, etc.). Replacement preserves child pages/databases by default. Only pass \`--allow-deleting-content\` when the user explicitly authorizes deleting that child content. Append and replace are mutually exclusive. Use \`--content-file -\`, \`--append-file -\`, or \`--replace-file -\` for stdin. \`page export <id> --output page.md\` writes Markdown and reports partial content/unknown blocks; \`--force\` permits overwriting an existing file.
 7. \`page archive <id>\` trashes a page (\`--restore\` to undo); \`page move <id> --to <parent>\` reparents it. \`block list <page_id>\` / \`block delete <id>\` work at the block level; \`comments list/add/delete <id>\`; \`users get <id>\`; \`whoami\` shows the token's identity.
-8. \`file upload <path> [--attach <page_id>]\` uploads a local file (single-part, via a multipart send) and optionally attaches it to a page.
-9. \`api <method> <path> [--body <json>]\` calls any Notion REST endpoint directly — an escape hatch for anything the dedicated commands don't cover.
-10. Every response ends with contextual next-step hints under \`help:\` — follow them.
+8. \`file upload <path> [--attach <page_id>]\` uploads a local file. \`file list [--status pending] [--limit 10] [--cursor <c>]\` lists uploads with server-side filtering/pagination. \`file import <https-url> [--name filename]\` starts an asynchronous URL import. Check \`file view <upload_id>\` until status is uploaded, then \`file attach <upload_id> --to <page_id>\` before expiry. Failed/expired uploads need a new upload.
+9. \`api <method> <path> [--body <json> | --body-file <path|->]\` calls any Notion REST endpoint. \`api endpoints [query]\` discovers endpoints; \`api docs <path> --method post\` and \`api schema <path> --method post\` inspect official Markdown/OpenAPI without making that request. \`--full\` expands discovery output; \`--notion-version\` selects an API version.
+10. \`workers\` lists Workers. \`workers view\`, \`capabilities list\`, \`runs list/logs\`, and \`usage\` inspect them; \`create\`, \`deploy\`, \`exec\`, \`sync\`, \`env\`, \`databases\`, \`webhooks\`, and \`oauth\` use native ntn syntax. \`workers exec <key> --data-file -\` accepts piped JSON. Status runs once; output is bounded with \`--limit\`, \`--fields\`, and \`--full\`. Deleting a worker, attaching/detaching a database, and env pull/push require explicit \`--yes\`; pass it only after the user authorizes the operation. Use \`--workers-config-file\` to select a project/workspace. Keep ntn updated for newer commands.
+11. Responses include contextual next-step hints under \`help:\` — follow them.
 
 ## Commands
 
 \`\`\`
-commands[11]:
-  (none)=home, search, page, db, block, users, comments, whoami, file, api, setup
-  page subcommands: view, create, update, archive, move
+commands[12]:
+  (none)=home, search, page, db, block, users, comments, whoami, file, api, workers, setup
+  page subcommands: view, export, create, update, archive, move
   db subcommands: view, query, create, edit
   block subcommands: list, delete
   users subcommands: (none)=list, get
   comments subcommands: list, add, delete
-  file subcommands: upload
+  file subcommands: upload, list, view, import, attach
+  api discovery: endpoints, docs, schema
+  workers: list, view, create, rename, delete, new, deploy, exec, capabilities,
+           runs, usage, sync, env, databases, webhooks, oauth
 \`\`\`
 
 Run \`npx -y notion-axi --help\` for global flags, or \`npx -y notion-axi <command> --help\` for per-command usage.
@@ -73,7 +77,7 @@ Run \`npx -y notion-axi --help\` for global flags, or \`npx -y notion-axi <comma
 - For \`db\` commands, \`<id>\` may be a database or a data-source id; a database resolves to its first data source automatically (use \`--source <id>\` to target a specific one).
 - Lists are minimal by default — add \`--fields url\` (search) or \`--fields a,b\` (db query) to widen, or \`--full\` for all database columns.
 - \`db query\` filters and sorts server-side: prefer \`--where Status=Todo\` (compiled from the schema) over fetching all rows and filtering yourself; \`--filter <json>\` passes a raw Notion filter (mutually exclusive with \`--where\`). Page in bounded chunks with \`--cursor\` — the response's \`next_cursor\` continues where \`has_more\` left off.
-- Page bodies are markdown via the Notion API, so \`--append\`/\`--replace\` and \`--content\` all take markdown (or read it from a file with the \`--*-file\` flags).
+- Page bodies are markdown via the Notion API. The \`--*-file\` flags accept paths or \`-\` for explicit stdin input; input is validated before mutations. \`page export\` writes a raw Markdown file while keeping its status output in TOON.
 - \`--set Name=value\` is repeatable and typed by the schema: dates as \`start..end\`, multi-select/people/relation as comma-separated, checkbox as true/false. \`page archive\` is idempotent (archiving an archived page is a no-op).
 - \`whoami\` reveals the identity behind the current login (bot vs user) and the workspace; \`users\` needs elevated workspace permissions and is often \`RESTRICTED_RESOURCE\`.
 - Anything without a dedicated command (views, meeting notes, templates, paginated property items) is reachable through \`api\` — the entire Notion REST API is available.

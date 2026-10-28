@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { collectFlag, parseArgs, strFlag } from "../args.js";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { checkFlags, collectFlag, parseArgs, strFlag } from "../args.js";
 import { usage } from "../errors.js";
 import {
   buildPropertyValue,
@@ -11,23 +12,31 @@ import {
   type Truncated,
 } from "../format.js";
 import { ntnApi } from "../ntn.js";
+import { textInput } from "../input.js";
 
-export const PAGE_HELP = `usage: notion-axi page <view|create|update|archive|move> ...
+export const PAGE_HELP = `usage: notion-axi page <view|export|create|update|archive|move> ...
 
 subcommands:
   view <id> [--full]
       Show properties and the page body (markdown). Body is previewed to
       ~1500 chars unless --full is given.
 
+  export <id> --output <path> [--force]
+      Write Markdown to a file. --force permits overwriting an existing file.
+      Reports partial Markdown and unknown block IDs returned by Notion.
+
   create --parent <id> --title <text> [--content <md> | --content-file <path>] [--db] [--set Name=value ...]
       Create a page. By default --parent is a page id; pass --db to create
       the page as a row inside a database (data source). --set sets row
       properties (repeatable; requires --db).
 
-  update <id> [--append <md> | --append-file <path>] [--replace <md> | --replace-file <path>] [--set Name=value ...]
+  update <id> [--append <md> | --append-file <path>] [--replace <md> | --replace-file <path>] [--set Name=value ...] [--allow-deleting-content]
       Append/replace the page body and/or set properties. --set is repeatable
       (e.g. --set Status=Done --set "Due=2026-07-01"; ranges as start..end;
       multi-select / people / relation as comma-separated values).
+      Replacement preserves child pages/databases unless --allow-deleting-content
+      explicitly permits their deletion. Append and replace are mutually exclusive.
+      Pass - to any --*-file flag to read Markdown from stdin.
 
   archive <id> [--restore]
       Move a page to the trash, or restore it with --restore. Idempotent.
@@ -37,6 +46,7 @@ subcommands:
 
 examples:
   notion-axi page view 24f1...
+  notion-axi page export 24f1... --output notes.md
   notion-axi page create --parent 9ab2... --title "New task" --db --set Status=Todo
   notion-axi page update 24f1... --append "## Follow-ups"
   notion-axi page update 24f1... --set Status=Done --set "Due=2026-07-01"
@@ -45,29 +55,6 @@ examples:
 `;
 
 const BODY_PREVIEW = 1500;
-
-/** Resolve markdown from an inline `--<name>` flag or a `--<name>-file` path. */
-function contentFrom(
-  flags: Record<string, string | boolean>,
-  name: string,
-): string | undefined {
-  const inline = strFlag(flags[name]);
-  const file = strFlag(flags[`${name}-file`]);
-  if (file !== undefined) {
-    if (inline !== undefined) {
-      throw usage(`Pass only one of --${name} or --${name}-file`);
-    }
-    try {
-      return readFileSync(file, "utf8");
-    } catch {
-      throw usage(
-        `Cannot read file: ${file}`,
-        `Check the path passed to --${name}-file`,
-      );
-    }
-  }
-  return inline;
-}
 
 /** Parse repeatable `--set Name=value` entries into [name, value] pairs. */
 function parseSets(entries: string[]): Array<[string, string]> {
@@ -100,6 +87,8 @@ export async function pageCommand(args: string[]) {
   switch (sub) {
     case "view":
       return pageView(rest);
+    case "export":
+      return pageExport(rest);
     case "create":
       return pageCreate(rest);
     case "update":
@@ -122,6 +111,7 @@ export async function pageCommand(args: string[]) {
 
 async function pageView(args: string[]) {
   const { positionals, flags } = parseArgs(args, ["full"]);
+  checkFlags(flags, ["full"]);
   const id = positionals[0];
   if (!id) throw usage("Missing page id", "Run `notion-axi page view <id>`");
   const full = flags.full === true;
@@ -153,19 +143,74 @@ async function pageView(args: string[]) {
     body: view.text || "(no text content)",
   };
 
-  if (view.truncated || md.truncated) {
+  const partial =
+    md.truncated === true || (md.unknown_block_ids?.length ?? 0) > 0;
+  if (view.truncated || partial) {
     out.body_truncated = true;
     out.body_chars_shown = view.text.length;
     if (view.total) out.body_chars_total = view.total;
-    out.help = [
-      `Run \`notion-axi page view ${id} --full\` for the complete body`,
-    ];
+    out.help = partial
+      ? [
+          `Notion returned partial Markdown; run \`notion-axi block list ${id}\` to inspect blocks`,
+        ]
+      : [`Run \`notion-axi page view ${id} --full\` for the complete body`];
   }
+  if (md.unknown_block_ids?.length)
+    out.unknown_block_ids = md.unknown_block_ids;
   return out;
+}
+
+async function pageExport(args: string[]) {
+  const { positionals, flags } = parseArgs(args, ["force"]);
+  checkFlags(flags, ["force", "output"]);
+  const id = positionals[0];
+  const output = strFlag(flags.output);
+  if (!id || !output) {
+    throw usage(
+      "An id and --output are required",
+      "Run `notion-axi page export <id> --output page.md`",
+    );
+  }
+  const md = await ntnApi(`v1/pages/${id}/markdown`);
+  const markdown: string = md.markdown ?? "";
+  const path = resolve(output);
+  try {
+    writeFileSync(path, markdown, {
+      encoding: "utf8",
+      flag: flags.force === true ? "w" : "wx",
+    });
+  } catch {
+    throw usage(
+      `Cannot write Markdown: ${path}`,
+      "Check the destination; use --force to overwrite an existing file",
+    );
+  }
+  const unknown = md.unknown_block_ids ?? [];
+  const partial = md.truncated === true || unknown.length > 0;
+  return {
+    exported: id,
+    output: path,
+    bytes: Buffer.byteLength(markdown),
+    partial,
+    unknown_block_ids: unknown,
+    help: partial
+      ? [
+          `Notion returned partial Markdown; run \`notion-axi block list ${id}\` to inspect unsupported or omitted blocks`,
+        ]
+      : [`Run \`notion-axi page view ${id}\` to inspect page properties`],
+  };
 }
 
 async function pageCreate(args: string[]) {
   const { flags } = parseArgs(args, ["db"]);
+  checkFlags(flags, [
+    "db",
+    "parent",
+    "title",
+    "content",
+    "content-file",
+    "set",
+  ]);
   const parent = strFlag(flags.parent);
   const title = strFlag(flags.title);
   if (!parent)
@@ -179,6 +224,7 @@ async function pageCreate(args: string[]) {
       "Run `notion-axi page create --parent <id> --title <text>`",
     );
   const sets = parseSets(collectFlag(args, "set"));
+  const content = textInput(flags, "content");
 
   let parentRef: Obj;
   let properties: Obj;
@@ -210,7 +256,6 @@ async function pageCreate(args: string[]) {
     body: { parent: parentRef, properties },
   });
 
-  const content = contentFrom(flags, "content");
   if (content !== undefined) {
     await ntnApi(`v1/pages/${page.id}/markdown`, {
       method: "PATCH",
@@ -233,7 +278,15 @@ async function pageCreate(args: string[]) {
 }
 
 async function pageUpdate(args: string[]) {
-  const { positionals, flags } = parseArgs(args);
+  const { positionals, flags } = parseArgs(args, ["allow-deleting-content"]);
+  checkFlags(flags, [
+    "append",
+    "append-file",
+    "replace",
+    "replace-file",
+    "set",
+    "allow-deleting-content",
+  ]);
   const id = positionals[0];
   if (!id)
     throw usage(
@@ -241,8 +294,28 @@ async function pageUpdate(args: string[]) {
       "Run `notion-axi page update <id> --set Name=value`",
     );
 
-  const append = contentFrom(flags, "append");
-  const replace = contentFrom(flags, "replace");
+  if (
+    flags["allow-deleting-content"] !== undefined &&
+    flags["allow-deleting-content"] !== true
+  ) {
+    throw usage(
+      "Use --allow-deleting-content without a value to permit child-content deletion",
+    );
+  }
+  // Reject conflicting actions before consuming stdin or making any mutation.
+  if (
+    (flags.append !== undefined || flags["append-file"] !== undefined) &&
+    (flags.replace !== undefined || flags["replace-file"] !== undefined)
+  ) {
+    throw usage("Pass only one of append or replace");
+  }
+  const append = textInput(flags, "append");
+  const replace = textInput(flags, "replace");
+  if (flags["allow-deleting-content"] === true && replace === undefined) {
+    throw usage(
+      "--allow-deleting-content requires --replace or --replace-file",
+    );
+  }
   const sets = parseSets(collectFlag(args, "set"));
   if (append === undefined && replace === undefined && sets.length === 0) {
     throw usage(
@@ -267,7 +340,10 @@ async function pageUpdate(args: string[]) {
       method: "PATCH",
       body: {
         type: "replace_content",
-        replace_content: { new_str: replace, allow_deleting_content: true },
+        replace_content: {
+          new_str: replace,
+          allow_deleting_content: flags["allow-deleting-content"] === true,
+        },
       },
     });
     out.body = "replaced";
@@ -288,6 +364,7 @@ async function pageUpdate(args: string[]) {
 
 async function pageArchive(args: string[]) {
   const { positionals, flags } = parseArgs(args, ["restore"]);
+  checkFlags(flags, ["restore"]);
   const id = positionals[0];
   if (!id) throw usage("Missing page id", "Run `notion-axi page archive <id>`");
   const restore = flags.restore === true;
@@ -319,6 +396,7 @@ async function pageArchive(args: string[]) {
 
 async function pageMove(args: string[]) {
   const { positionals, flags } = parseArgs(args, ["db"]);
+  checkFlags(flags, ["db", "to"]);
   const id = positionals[0];
   if (!id) {
     throw usage(

@@ -29,6 +29,7 @@ describe("objectTitle", () => {
     const page = {
       object: "page",
       properties: {
+        Status: { type: "status", status: { name: "Open" } },
         Name: { type: "title", title: [{ plain_text: "Roadmap" }] },
       },
     };

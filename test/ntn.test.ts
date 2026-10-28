@@ -10,6 +10,8 @@ import {
   mapNtnError,
   ntnApi,
   ntnNotInstalledError,
+  ntnJson,
+  ntnText,
 } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
 
@@ -39,6 +41,14 @@ function mockExec({ error = null, stdout = "", stderr = "" }: ExecResult) {
 afterEach(() => vi.clearAllMocks());
 
 describe("buildApiArgs", () => {
+  it("forwards a per-request API version", () => {
+    expect(buildApiArgs("v1/users", { notionVersion: "2026-03-11" })).toEqual([
+      "api",
+      "v1/users",
+      "--notion-version",
+      "2026-03-11",
+    ]);
+  });
   it("builds a bare GET and strips a leading slash", () => {
     expect(buildApiArgs("/v1/users/me")).toEqual(["api", "v1/users/me"]);
   });
@@ -63,6 +73,24 @@ describe("buildApiArgs", () => {
       "-d",
       '{"a":1}',
     ]);
+  });
+});
+
+describe("native command output", () => {
+  it("preserves Markdown and parses native array results", async () => {
+    const { end } = mockExec({ stdout: "# Docs\n" });
+    expect(await ntnText(["api", "v1/pages", "--docs"])).toBe("# Docs\n");
+    expect(end).toHaveBeenCalledOnce();
+    mockExec({ stdout: '[{"id":"w1"}]' });
+    expect(await ntnJson(["workers", "list", "--json"])).toEqual([
+      { id: "w1" },
+    ]);
+  });
+
+  it("maps native CLI validation failures to usage errors with update guidance", () => {
+    const error = mapNtnError("error: unrecognized subcommand 'databases'", 2);
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.suggestions.join(" ")).toContain("ntn update");
   });
 });
 

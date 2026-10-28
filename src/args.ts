@@ -1,3 +1,5 @@
+import { usage } from "./errors.js";
+
 export interface ParsedArgs {
   positionals: string[];
   flags: Record<string, string | boolean>;
@@ -74,4 +76,31 @@ export function listFlag(value: string | boolean | undefined): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** Validate a bounded list size rather than silently accepting malformed input. */
+export function limitFlag(
+  value: string | boolean | undefined,
+  fallback = 10,
+): number {
+  if (value === undefined) return fallback;
+  if (
+    typeof value !== "string" ||
+    !/^\d+$/.test(value) ||
+    Number(value) < 1 ||
+    Number(value) > 100
+  ) {
+    throw usage("--limit must be an integer from 1 to 100");
+  }
+  return Number(value);
+}
+
+/** Reject misspelled flags before a request or local write. */
+export function checkFlags(
+  flags: Record<string, string | boolean>,
+  allowed: string[],
+): void {
+  for (const name of Object.keys(flags)) {
+    if (!allowed.includes(name)) throw usage(`Unknown flag --${name}`);
+  }
 }
