@@ -151,9 +151,15 @@ describe("Workers inspection and bounded output", () => {
       "--workers-config-file",
       "prod.json",
     ]);
+    vi.clearAllMocks();
     await expect(
       workersCommand(["--workers-config-file", "--full", "list"]),
     ).rejects.toThrow(/Missing value for --workers-config-file/);
+    await expect(
+      workersCommand(["--workers-config-file=", "list"]),
+    ).rejects.toThrow(/Missing value for --workers-config-file/);
+    expect(ntnJson).not.toHaveBeenCalled();
+    expect(ntnText).not.toHaveBeenCalled();
   });
 
   it("disables watch mode without duplicating an explicit no-watch", async () => {
