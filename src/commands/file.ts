@@ -13,7 +13,7 @@ subcommands:
   list [--status <pending|uploaded|expired|failed>] [--limit <1..100>] [--cursor <c>] [--full]
       List uploads, with server-side status filtering and cursor pagination.
   view <upload_id> [--full]
-      Check upload status, size, expiry, and import errors. Aliases: get, status.
+      Check upload status, size, expiry, and import errors.
   import <https-url> [--name <filename>]
       Import a public HTTPS URL asynchronously; check view before attaching.
   attach <upload_id> --to <page_id>
@@ -38,8 +38,6 @@ export async function fileCommand(args: string[]) {
     case "list":
       return fileList(rest);
     case "view":
-    case "get":
-    case "status":
       return fileView(rest);
     case "import":
       return fileImport(rest);

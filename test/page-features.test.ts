@@ -116,6 +116,12 @@ describe("Markdown export", () => {
       expect(
         await pageCommand(["export", "p", "--output", path, "--force"]),
       ).toMatchObject({ partial: true });
+      const unknownView: any = await pageCommand(["view", "p", "--full"]);
+      expect(unknownView).toMatchObject({
+        body_truncated: true,
+        unknown_block_ids: ["b2"],
+      });
+      expect(unknownView.help[0]).toContain("partial Markdown");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

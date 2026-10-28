@@ -143,11 +143,12 @@ async function pageView(args: string[]) {
     body: view.text || "(no text content)",
   };
 
-  if (view.truncated || md.truncated) {
+  const partial = md.truncated === true || (md.unknown_block_ids?.length ?? 0) > 0;
+  if (view.truncated || partial) {
     out.body_truncated = true;
     out.body_chars_shown = view.text.length;
     if (view.total) out.body_chars_total = view.total;
-    out.help = md.truncated
+    out.help = partial
       ? [
           `Notion returned partial Markdown; run \`notion-axi block list ${id}\` to inspect blocks`,
         ]

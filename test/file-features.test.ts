@@ -81,9 +81,7 @@ describe("file listing and inspection", () => {
         expect(out.help[0]).toContain("file attach f1");
     }
     api.mockResolvedValue(upload);
-    expect((await fileCommand(["get", "f1", "--full"])).file).toEqual(upload);
-    await fileCommand(["status", "f1"]);
-    expect(api).toHaveBeenLastCalledWith("v1/file_uploads/f1");
+    expect((await fileCommand(["view", "f1", "--full"])).file).toEqual(upload);
   });
 
   it("rejects malformed list flags and missing ids without requests", async () => {
@@ -93,6 +91,8 @@ describe("file listing and inspection", () => {
       ["list", "--cursor"],
       ["list", "--limit", "0"],
       ["view"],
+      ["get", "f1"],
+      ["status", "f1"],
       ["list", "--typo"],
     ]) {
       await expect(fileCommand(args)).rejects.toThrow();

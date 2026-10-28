@@ -3,5 +3,5 @@
 /.github/workflows/ @maximebrmd
 /.github/CODEOWNERS @maximebrmd
 /CHANGELOG.md @maximebrmd
-/.changeset/config.json @maximebrmd
+/.release-please-manifest.json @maximebrmd
 /skills/notion-axi/SKILL.md @maximebrmd

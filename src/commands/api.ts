@@ -37,7 +37,7 @@ const METHODS = new Set(["get", "post", "patch", "delete"]);
 
 export async function apiCommand(args: string[]) {
   const { positionals, flags } = parseArgs(args, ["full"]);
-  if (["endpoints", "ls", "docs", "schema"].includes(positionals[0])) {
+  if (["endpoints", "docs", "schema"].includes(positionals[0])) {
     return apiDiscovery(positionals, flags);
   }
   checkFlags(flags, ["method", "body", "body-file", "query", "notion-version"]);
@@ -102,7 +102,7 @@ async function apiDiscovery(
   const [sub, path] = positionals;
   checkFlags(
     flags,
-    sub === "endpoints" || sub === "ls"
+    sub === "endpoints"
       ? ["method", "limit", "full", "notion-version"]
       : ["method", "full", "notion-version"],
   );
@@ -111,7 +111,7 @@ async function apiDiscovery(
     throw usage("Use --method get, post, patch, or delete");
   const version = versionFlag(flags);
   const versionArgs = version ? ["--notion-version", version] : [];
-  if (sub === "endpoints" || sub === "ls") {
+  if (sub === "endpoints") {
     const limit = limitFlag(flags.limit, 25);
     const endpoints = await ntnJson<Obj[]>([
       "api",

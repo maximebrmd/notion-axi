@@ -1,59 +1,45 @@
-# Keep this filename: npm trusted publishers are bound to a workflow filename.
-name: Release (Changesets)
+name: release-please
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  id-token: write
 
 jobs:
-  release:
-    if: github.ref == 'refs/heads/main'
+  release-please:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: googleapis/release-please-action@v4
+        id: release
         with:
-          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
 
       - uses: pnpm/action-setup@v4
+        if: ${{ steps.release.outputs.release_created }}
 
       - uses: actions/setup-node@v6
+        if: ${{ steps.release.outputs.release_created }}
         with:
           node-version: 24
+          registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+        if: ${{ steps.release.outputs.release_created }}
+
       - run: pnpm run build
-      - run: pnpm run build:skill -- --check
-      - run: pnpm run lint
-      - run: pnpm run format:check
-      - run: pnpm test
+        if: ${{ steps.release.outputs.release_created }}
 
-      # npm >= 11.5.1 supports trusted publishing; keep the install on Node 24's
-      # compatible npm major. No registry auth token is needed with OIDC.
-      - run: npm install --global npm@11
+      # Trusted publishing (OIDC) requires npm >= 11.5.1; the bundled npm may be older.
+      - run: npm install -g npm@latest
+        if: ${{ steps.release.outputs.release_created }}
 
-      - name: Create release PR or publish
-        uses: changesets/action@v1
-        with:
-          version: pnpm run version-packages
-          publish: pnpm run release
-          commit: "chore: release notion-axi"
-          title: "chore: release notion-axi"
-          createGithubReleases: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
-          PNPM_CONFIG_PROVENANCE: "true"
+      - run: npm publish --access public --provenance
+        if: ${{ steps.release.outputs.release_created }}

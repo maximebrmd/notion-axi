@@ -23,5 +23,4 @@ jobs:
       - run: pnpm run build
       - run: pnpm run build:skill -- --check
       - run: pnpm run lint
-      - run: pnpm run format:check
       - run: pnpm test

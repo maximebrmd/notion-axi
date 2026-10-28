@@ -91,6 +91,9 @@ const TEXT_COMMANDS = new Set([
   "new",
   "env pull",
   "env push",
+  "env set",
+  "env unset",
+  "sync state reset",
   "oauth show-redirect-url",
   "exec",
 ]);

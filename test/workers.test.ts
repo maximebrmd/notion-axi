@@ -135,9 +135,6 @@ describe("Workers lifecycle and native command families", () => {
       ["sync", "pause", "contacts"],
       ["sync", "resume", "contacts"],
       ["sync", "state", "get", "contacts"],
-      ["sync", "state", "reset", "contacts"],
-      ["env", "set", "KEY=value"],
-      ["env", "unset", "KEY"],
       ["databases", "list"],
       ["webhooks", "list"],
       ["webhooks", "verification", "enable", "key"],
@@ -148,6 +145,19 @@ describe("Workers lifecycle and native command families", () => {
       await workersCommand(args);
       expect(ntnJson).toHaveBeenLastCalledWith(["workers", ...args, "--json"]);
     }
+  });
+
+  it("uses native text for commands without JSON support", async () => {
+    vi.mocked(ntnText).mockResolvedValue("Updated\n");
+    for (const args of [
+      ["sync", "state", "reset", "contacts"],
+      ["env", "set", "KEY=value"],
+      ["env", "unset", "KEY"],
+    ]) {
+      expect((await workersCommand(args)).result).toBe("Updated\n");
+      expect(ntnText).toHaveBeenLastCalledWith(["workers", ...args]);
+    }
+    expect(ntnJson).not.toHaveBeenCalled();
   });
 
   it("requires explicit confirmation for deletion, bindings and env transfer", async () => {

@@ -49,7 +49,6 @@ describe("official API discovery", () => {
       "ls",
       "--json",
     ]);
-    expect((await apiCommand(["ls", "nothing"])).total).toBe(0);
     expect(ntnApi).not.toHaveBeenCalled();
   });
 
@@ -116,6 +115,13 @@ describe("official API discovery", () => {
     }
     expect(ntnJson).not.toHaveBeenCalled();
     expect(ntnText).not.toHaveBeenCalled();
+  });
+
+  it("does not treat ls as endpoint discovery", async () => {
+    vi.mocked(ntnApi).mockResolvedValue({ results: [] });
+    expect(await apiCommand(["ls"])).toEqual({ result: { results: [] } });
+    expect(ntnApi).toHaveBeenCalledWith("ls", { method: "get" });
+    expect(ntnJson).not.toHaveBeenCalled();
   });
 
   it("leads schema previews with the selected operation and preserves complete fragments", async () => {
