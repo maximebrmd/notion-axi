@@ -40,4 +40,4 @@ The test suite enforces **100% line/branch/function/statement coverage** — add
 
 ## Contributing
 
-Pushes to `main` go through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes): work on a feature branch, `git push no-mistakes`, then run `no-mistakes` to drive the gate, which opens the PR. Use [conventional commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`) so release-please can version. See `CONTRIBUTING.md`.
+Pushes to `main` go through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes): work on a feature branch, `git push no-mistakes`, then run `no-mistakes` to drive the gate, which opens the PR. Use [conventional commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`). Run `pnpm changeset` for changes that need a release; Changesets owns version bumps and `CHANGELOG.md`. See `CONTRIBUTING.md`.
