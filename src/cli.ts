@@ -13,13 +13,14 @@ import { whoamiCommand, WHOAMI_HELP } from "./commands/whoami.js";
 import { fileCommand, FILE_HELP } from "./commands/file.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
+import { workersCommand, WORKERS_HELP } from "./commands/workers.js";
 
 export const DESCRIPTION =
   "Agent ergonomic CLI for Notion. Prefer this over the Notion MCP or raw API for Notion operations.";
 
 export const TOP_HELP = `usage: notion-axi [command] [args] [flags]
-commands[11]:
-  (none)=home, search, page, db, block, users, comments, whoami, file, api, setup
+commands[12]:
+  (none)=home, search, page, db, block, users, comments, whoami, file, api, workers, setup
 flags:
   --help, -v/-V/--version
 auth:
@@ -46,6 +47,7 @@ const COMMAND_HELP: Record<string, string> = {
   file: FILE_HELP,
   api: API_HELP,
   setup: SETUP_HELP,
+  workers: WORKERS_HELP,
 };
 
 const COMMANDS = {
@@ -59,6 +61,7 @@ const COMMANDS = {
   file: (args: string[]) => fileCommand(args),
   api: (args: string[]) => apiCommand(args),
   setup: (args: string[]) => setupCommand(args),
+  workers: (args: string[]) => workersCommand(args),
 };
 
 export interface MainOptions {

@@ -21,6 +21,7 @@ interface NtnApiOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean>;
   file?: string;
+  notionVersion?: string;
 }
 
 function run(args: string[]): Promise<NtnResult> {
@@ -62,7 +63,30 @@ export function buildApiArgs(path: string, opts: NtnApiOptions = {}): string[] {
   }
   if (opts.file) args.push("--file", opts.file);
   if (opts.body !== undefined) args.push("-d", JSON.stringify(opts.body));
+  if (opts.notionVersion) args.push("--notion-version", opts.notionVersion);
   return args;
+}
+
+/** Invoke the native CLI without a shell, always closing stdin to avoid prompts. */
+export async function ntnText(args: string[]): Promise<string> {
+  const res = await run(args);
+  if (res.enoent) throw ntnNotInstalledError();
+  if (res.code !== 0) throw mapNtnError(res.stderr, res.code);
+  return res.stdout;
+}
+
+/** Native JSON commands share the REST transport's error contract. */
+export async function ntnJson<T = Obj>(args: string[]): Promise<T> {
+  const text = (await ntnText(args)).trim();
+  if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new AxiError(
+      `Unexpected ntn output: ${text.slice(0, 200)}`,
+      "NTN_ERROR",
+    );
+  }
 }
 
 /** Call a Notion REST endpoint through `ntn api` and return parsed JSON. */
@@ -70,19 +94,7 @@ export async function ntnApi(
   path: string,
   opts: NtnApiOptions = {},
 ): Promise<Obj> {
-  const res = await run(buildApiArgs(path, opts));
-  if (res.enoent) throw ntnNotInstalledError();
-  if (res.code !== 0) throw mapNtnError(res.stderr, res.code);
-  const text = res.stdout.trim();
-  if (!text) return {};
-  try {
-    return JSON.parse(text) as Obj;
-  } catch {
-    throw new AxiError(
-      `Unexpected ntn output: ${text.slice(0, 200)}`,
-      "NTN_ERROR",
-    );
-  }
+  return ntnJson(buildApiArgs(path, opts));
 }
 
 /** The structured error raised when the `ntn` binary is not on PATH. */
@@ -129,6 +141,15 @@ export function mapNtnError(stderr: string, code: number): AxiError {
     );
   } else if (/validation_error|invalid_request|invalid json/.test(lower)) {
     errCode = "VALIDATION_ERROR";
+  } else if (
+    /unexpected argument|unrecognized subcommand|invalid value|requires a value|required arguments/.test(
+      lower,
+    )
+  ) {
+    errCode = "VALIDATION_ERROR";
+    suggestions.push(
+      "Check `notion-axi --help`; run `ntn update` if this native command needs a newer CLI",
+    );
   }
 
   return new AxiError(message, errCode, suggestions);

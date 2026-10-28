@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn() }));
+vi.mock("../src/ntn.js", () => ({ ntnApi: vi.fn(), ntnJson: vi.fn() }));
 
 import { main } from "../src/cli.js";
-import { ntnApi } from "../src/ntn.js";
+import { ntnApi, ntnJson } from "../src/ntn.js";
 import { AxiError } from "../src/errors.js";
 
 // Exercises each command arrow in src/cli.ts's COMMANDS map. With ntn rejecting,
@@ -13,6 +13,7 @@ describe("command dispatch", () => {
   beforeEach(() => {
     process.exitCode = undefined;
     vi.mocked(ntnApi).mockRejectedValue(new AxiError("nope", "AUTH_REQUIRED"));
+    vi.mocked(ntnJson).mockRejectedValue(new AxiError("nope", "AUTH_REQUIRED"));
   });
   afterEach(() => {
     process.exitCode = undefined;
@@ -33,6 +34,7 @@ describe("command dispatch", () => {
     expect(await run(["comments", "list", "x"])).toContain("AUTH_REQUIRED");
     expect(await run(["whoami"])).toContain("AUTH_REQUIRED");
     expect(await run(["block", "list", "x"])).toContain("AUTH_REQUIRED");
+    expect(await run(["workers", "list"])).toContain("AUTH_REQUIRED");
   });
 
   it("routes setup and file to their handlers (validation errors, no side effects)", async () => {

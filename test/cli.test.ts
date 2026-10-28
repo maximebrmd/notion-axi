@@ -60,7 +60,7 @@ describe("main", () => {
     const c = capture();
     await main({ argv: ["page", "--help"], stdout: c.stdout });
     expect(c.read()).toContain(
-      "notion-axi page <view|create|update|archive|move>",
+      "notion-axi page <view|export|create|update|archive|move>",
     );
   });
 });
