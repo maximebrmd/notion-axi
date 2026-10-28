@@ -46,14 +46,24 @@ jobs:
       - run: npm install --global npm@11
 
       - name: Create release PR or publish
-        uses: changesets/action@v1
+        id: changesets
+        uses: changesets/action@v2
         with:
-          version: pnpm run version-packages
-          publish: pnpm run release
-          commit: "chore: release notion-axi"
-          title: "chore: release notion-axi"
-          createGithubReleases: true
+          version-script: pnpm run version-packages
+          publish-script: pnpm run release
+          commit-message: "chore: release notion-axi"
+          pr-title: "chore: release notion-axi"
+          create-github-releases: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
           PNPM_CONFIG_PROVENANCE: "true"
+
+      - name: Verify published release
+        if: steps.changesets.outputs.has-changesets == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_version="$(node -p "require('./package.json').version")"
+          npm view "notion-axi@${release_version}" version --registry https://registry.npmjs.org
+          gh release view "v${release_version}" --repo "${GITHUB_REPOSITORY}" --json tagName --jq .tagName
