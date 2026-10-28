@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.0
+
+### Minor Changes
+
+- d9cb921: Require explicit permission to delete child content during page replacement. Add file listing, status checks, asynchronous URL imports and existing-upload attachment; official API endpoint, docs and schema discovery; Markdown export and file/stdin input; and native Workers management with bounded TOON output and explicit confirmation for destructive operations.
+  
+  Update axi-sdk-js to 0.1.13 and refresh development dependencies, retaining TypeScript 6.0 for compatibility with typescript-eslint.
+
+### Patch Changes
+
+- d9cb921: Manage version bumps and changelogs with Changesets and automate npm and GitHub releases.
+
 ## [2.1.0](https://github.com/maximebrmd/notion-axi/compare/notion-axi-v2.0.0...notion-axi-v2.1.0) (2026-07-02)
 
 
