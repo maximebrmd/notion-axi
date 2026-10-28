@@ -100,6 +100,62 @@ describe("Workers inspection and bounded output", () => {
     ]);
   });
 
+  it("accepts a leading workspace selector for default and explicit commands", async () => {
+    vi.mocked(ntnJson).mockResolvedValue([]);
+    expect(
+      (await workersCommand(["--workers-config-file", "prod.json"])).command,
+    ).toBe("workers list");
+    expect(ntnJson).toHaveBeenLastCalledWith([
+      "workers",
+      "list",
+      "--workers-config-file",
+      "prod.json",
+      "--json",
+    ]);
+    await workersCommand(["--workers-config-file=prod.json", "list"]);
+    expect(ntnJson).toHaveBeenLastCalledWith([
+      "workers",
+      "list",
+      "--workers-config-file=prod.json",
+      "--json",
+    ]);
+    await workersCommand([
+      "--workers-config-file",
+      "prod.json",
+      "runs",
+      "logs",
+      "r1",
+    ]);
+    expect(ntnJson).toHaveBeenLastCalledWith([
+      "workers",
+      "runs",
+      "logs",
+      "r1",
+      "--workers-config-file",
+      "prod.json",
+      "--json",
+    ]);
+    vi.mocked(ntnText).mockResolvedValue("Updated");
+    await workersCommand([
+      "--workers-config-file",
+      "prod.json",
+      "env",
+      "set",
+      "KEY=value",
+    ]);
+    expect(ntnText).toHaveBeenLastCalledWith([
+      "workers",
+      "env",
+      "set",
+      "KEY=value",
+      "--workers-config-file",
+      "prod.json",
+    ]);
+    await expect(
+      workersCommand(["--workers-config-file", "--full", "list"]),
+    ).rejects.toThrow(/Missing value for --workers-config-file/);
+  });
+
   it("disables watch mode without duplicating an explicit no-watch", async () => {
     vi.mocked(ntnJson).mockResolvedValue({});
     await workersCommand(["sync", "status", "contacts"]);

@@ -182,7 +182,26 @@ function compactLists(
 }
 
 export async function workersCommand(input: string[]) {
-  const args = input.length ? [...input] : ["list"];
+  const args = [...input];
+  const leadingConfig: string[] = [];
+  while (
+    args[0] === "--workers-config-file" ||
+    args[0]?.startsWith("--workers-config-file=")
+  ) {
+    const flag = args.shift()!;
+    if (flag === "--workers-config-file") {
+      const value = args.shift();
+      if (!value || value.startsWith("--"))
+        throw usage("Missing value for --workers-config-file");
+      leadingConfig.push(flag, value);
+    } else {
+      if (flag.length === "--workers-config-file=".length)
+        throw usage("Missing value for --workers-config-file");
+      leadingConfig.push(flag);
+    }
+  }
+  if (!args.length) args.push("list");
+  args.push(...leadingConfig);
   if (args[0] === "view") args[0] = "get";
   if (args[0] === "ls") args[0] = "list";
   if (args[0] === "rm") args[0] = "delete";
