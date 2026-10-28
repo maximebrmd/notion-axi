@@ -53,7 +53,9 @@ remain available.
 
 The workflow stays at `.github/workflows/release-please.yml` because npm trusted
 publishers are bound to the filename. Its implementation now uses Changesets;
-the old release-please configuration has been removed. To enable publishing:
+Changesets CLI v3 requires `changesets/action@v2`. The workflow verifies the npm
+version and GitHub release after publishing. The old release-please configuration
+has been removed. To enable publishing:
 
 - In GitHub, enable **Settings → Actions → General → Allow GitHub Actions to
   create and approve pull requests**.
